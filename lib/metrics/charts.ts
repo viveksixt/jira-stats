@@ -144,7 +144,13 @@ export interface WorkloadData {
 export function calculateWorkloadDistribution(issues: JiraIssue[]): WorkloadData[] {
   const workloadMap = new Map<string, WorkloadData>();
 
-  issues.forEach(issue => {
+  // Filter out TODO status items
+  const filteredIssues = issues.filter(issue => {
+    const statusCategory = issue.fields.status.statusCategory.key;
+    return statusCategory !== 'new'; // 'new' is the status category for TODO
+  });
+
+  filteredIssues.forEach(issue => {
     const assigneeName = issue.fields.assignee?.displayName || 'Unassigned';
     const statusCategory = issue.fields.status.statusCategory.key;
 
@@ -170,7 +176,12 @@ export function calculateWorkloadDistribution(issues: JiraIssue[]): WorkloadData
     }
   });
 
-  return Array.from(workloadMap.values()).sort((a, b) => b.total - a.total);
+  // Remove assignees who only have TODO items (which should be 0 now after filtering)
+  const result = Array.from(workloadMap.values())
+    .filter(data => data.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  return result;
 }
 
 // Issue aging (how long issues have been open)

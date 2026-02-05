@@ -36,11 +36,17 @@ const SettingsIcon = () => (
 interface TechDebtSettingsProps {
   techLabels: string[];
   onSave: (labels: string[]) => void;
+  ignoreIssueKeys: string[];
+  onIgnoreIssueKeysChange: (keys: string[]) => void;
 }
 
-export function TechDebtSettings({ techLabels, onSave }: TechDebtSettingsProps) {
+export function TechDebtSettings({ techLabels, onSave, ignoreIssueKeys, onIgnoreIssueKeysChange }: TechDebtSettingsProps) {
   const [open, setOpen] = useState(false);
-  const [labelsInput, setLabelsInput] = useState(techLabels.join(', '));
+  // Ensure techLabels and ignoreIssueKeys are arrays before calling join()
+  const safeTechLabels = Array.isArray(techLabels) ? techLabels : DEFAULT_TECH_LABELS;
+  const safeIgnoreKeys = Array.isArray(ignoreIssueKeys) ? ignoreIssueKeys : [];
+  const [labelsInput, setLabelsInput] = useState(safeTechLabels.join(', '));
+  const [ignoreKeysInput, setIgnoreKeysInput] = useState(safeIgnoreKeys.join(', '));
 
   const handleSave = () => {
     const labels = labelsInput
@@ -55,12 +61,21 @@ export function TechDebtSettings({ techLabels, onSave }: TechDebtSettingsProps) 
     } else {
       onSave(labels);
     }
+
+    const keys = ignoreKeysInput
+      .split(',')
+      .map(k => k.trim())
+      .filter(k => k.length > 0);
+    onIgnoreIssueKeysChange(keys);
+    
     setOpen(false);
   };
 
   const handleReset = () => {
     setLabelsInput(DEFAULT_TECH_LABELS.join(', '));
     onSave(DEFAULT_TECH_LABELS);
+    setIgnoreKeysInput('');
+    onIgnoreIssueKeysChange([]);
   };
 
   return (
@@ -72,9 +87,9 @@ export function TechDebtSettings({ techLabels, onSave }: TechDebtSettingsProps) 
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Tech Debt Label Configuration</DialogTitle>
+          <DialogTitle>Dashboard Configuration</DialogTitle>
           <DialogDescription>
-            Configure which labels should be considered as tech debt. Issues with these labels will be counted as technical work.
+            Configure tech debt labels and issue exclusions for all metrics.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -106,6 +121,18 @@ export function TechDebtSettings({ techLabels, onSave }: TechDebtSettingsProps) 
                 );
               })}
             </div>
+          </div>
+          <div className="space-y-2 pt-4 border-t">
+            <Label htmlFor="ignore-keys">Ignore Issue Keys</Label>
+            <Input
+              id="ignore-keys"
+              placeholder="PROJ-123, PROJ-456"
+              value={ignoreKeysInput}
+              onChange={(e) => setIgnoreKeysInput(e.target.value)}
+            />
+            <p className="text-sm text-muted-foreground">
+              Enter comma-separated issue keys to exclude from all metrics
+            </p>
           </div>
         </div>
         <DialogFooter>

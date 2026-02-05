@@ -65,8 +65,10 @@ export function ClickableMetricCard({
           </p>
         )}
         {isClickable && (
-          <p className="text-xs text-blue-600 mt-2 font-medium">
-            {issues.length} issues • Click to view
+          <p className="text-xs text-muted-foreground mt-2">
+            <span className="hover:underline cursor-pointer">
+              {issues.length} issues
+            </span>
           </p>
         )}
       </CardContent>

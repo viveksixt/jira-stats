@@ -2,12 +2,11 @@
 
 import { Card, CardContent } from '@/components/ui/card';
 import { QueryModeToggle } from './QueryModeToggle';
-import { BoardTypeToggle } from './BoardTypeToggle';
 import { ProjectFilter } from './ProjectFilter';
 import { SprintSelector } from './SprintSelector';
 import { BoardSelector } from './BoardSelector';
 import { JQLQueryPanel } from './JQLQueryPanel';
-import type { JiraBoard, JiraProject, JiraSprint, QueryMode, BoardType } from '@/types/jira';
+import type { JiraBoard, JiraProject, JiraSprint, QueryMode } from '@/types/jira';
 
 interface FilterPanelProps {
   // Mode
@@ -15,9 +14,6 @@ interface FilterPanelProps {
   onQueryModeChange: (mode: QueryMode) => void;
 
   // Board Mode Filters
-  boardType: BoardType;
-  onBoardTypeChange: (type: BoardType) => void;
-  
   projects: JiraProject[];
   selectedProject: JiraProject | null;
   onProjectSelect: (project: JiraProject) => void;
@@ -38,8 +34,6 @@ interface FilterPanelProps {
 export function FilterPanel({
   queryMode,
   onQueryModeChange,
-  boardType,
-  onBoardTypeChange,
   projects,
   selectedProject,
   onProjectSelect,
@@ -56,12 +50,9 @@ export function FilterPanel({
     <Card>
       <CardContent className="pt-6">
         <div className="space-y-4">
-          {/* Row 1: Query Mode Toggle + Board Type Toggle */}
+          {/* Row 1: Query Mode Toggle */}
           <div className="flex flex-wrap items-center gap-4">
             <QueryModeToggle value={queryMode} onChange={onQueryModeChange} />
-            {queryMode === 'board' && (
-              <BoardTypeToggle value={boardType} onChange={onBoardTypeChange} />
-            )}
           </div>
 
           {/* Board Mode Filters */}

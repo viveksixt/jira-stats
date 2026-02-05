@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { ClickableMetricCard } from '@/components/dashboard/ClickableMetricCard';
-import { IssueDetailsModal } from '@/components/dashboard/IssueDetailsModal';
+import { ChartDetailsModal } from '@/components/dashboard/ChartDetailsModal';
 import { CycleTimeChart } from '@/components/dashboard/CycleTimeChart';
 import { TechDebtChart } from '@/components/dashboard/TechDebtChart';
 import { TechDebtSettings } from '@/components/dashboard/TechDebtSettings';
@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ClearAllToasts } from '@/components/ui/clear-all-toasts';
 import { showSuccess, showError, showLoading } from '@/lib/toast';
-import { cache, cacheKeys } from '@/lib/cache';
+import { cache, cacheKeys, preferenceKeys } from '@/lib/cache';
 import { DEFAULT_TECH_LABELS } from '@/lib/metrics/kpi';
 import type { JiraBoard, JiraProject, JiraSprint, QueryMode, BoardType, JiraIssue } from '@/types/jira';
 import { toast } from 'sonner';
@@ -32,7 +32,6 @@ export default function DashboardPage() {
   const [queryMode, setQueryMode] = useState<QueryMode>('board');
 
   // Board mode state
-  const [boardType, setBoardType] = useState<BoardType>('all');
   const [projects, setProjects] = useState<JiraProject[]>([]);
   const [selectedProject, setSelectedProject] = useState<JiraProject | null>(null);
   const [boards, setBoards] = useState<JiraBoard[]>([]);
@@ -43,8 +42,37 @@ export default function DashboardPage() {
   // JQL mode state
   const [jqlLoading, setJqlLoading] = useState(false);
 
-  // Tech debt labels customization
-  const [techLabels, setTechLabels] = useState<string[]>(DEFAULT_TECH_LABELS);
+  // Tech debt labels customization and ignore list
+  const [techLabels, setTechLabels] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(preferenceKeys.techLabels);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return Array.isArray(parsed) ? parsed : DEFAULT_TECH_LABELS;
+        } catch {
+          return DEFAULT_TECH_LABELS;
+        }
+      }
+      return DEFAULT_TECH_LABELS;
+    }
+    return DEFAULT_TECH_LABELS;
+  });
+  const [ignoreIssueKeys, setIgnoreIssueKeys] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(preferenceKeys.ignoreIssueKeys);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    }
+    return [];
+  });
 
   // Metrics
   const [metrics, setMetrics] = useState<any>(null);
@@ -122,8 +150,8 @@ export default function DashboardPage() {
     const toastId = toast.loading('Loading boards...');
     try {
       const url = projectKey
-        ? `/api/boards?projectKeyOrId=${projectKey}&type=${boardType}`
-        : `/api/boards?type=${boardType}`;
+        ? `/api/boards?projectKeyOrId=${projectKey}`
+        : `/api/boards`;
       const res = await fetch(url);
       if (!res.ok) {
         const error = await res.json();
@@ -146,14 +174,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Handle board type change
-  useEffect(() => {
-    if (selectedProject) {
-      loadBoards(selectedProject.key);
-    } else {
-      loadBoards();
-    }
-  }, [boardType]);
+  // Removed board type change handler as board type toggle was removed
 
   // Handle project change
   const handleProjectSelect = (project: JiraProject) => {
@@ -190,7 +211,7 @@ export default function DashboardPage() {
         throw new Error(error.error || 'Failed to load sprints');
       }
       const data = await res.json();
-      const closedSprints = (data.sprints || []).filter((s) => s.state === 'closed');
+      const closedSprints = (data.sprints || []).filter((s: JiraSprint) => s.state === 'closed');
       setSprints(closedSprints);
       cache.set(cacheKeys.sprints(boardId), data.sprints || [], 600000);
       if (closedSprints.length > 0) {
@@ -227,7 +248,8 @@ export default function DashboardPage() {
     const toastId = toast.loading('Calculating metrics...');
     try {
       const techLabelsParam = techLabels.join(',');
-      const res = await fetch(`/api/metrics?sprintId=${sprintId}&techLabels=${encodeURIComponent(techLabelsParam)}`);
+      const ignoreKeysParam = ignoreIssueKeys.join(',');
+      const res = await fetch(`/api/metrics?sprintId=${sprintId}&techLabels=${encodeURIComponent(techLabelsParam)}&ignoreKeys=${encodeURIComponent(ignoreKeysParam)}`);
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || 'Failed to calculate metrics');
@@ -254,6 +276,18 @@ export default function DashboardPage() {
   // Handle tech labels change
   const handleTechLabelsChange = (labels: string[]) => {
     setTechLabels(labels);
+    localStorage.setItem(preferenceKeys.techLabels, JSON.stringify(labels));
+    // Clear cache and reload metrics if we have a selected sprint
+    if (selectedSprint) {
+      cache.remove(cacheKeys.metrics(selectedSprint.id));
+      loadMetrics(selectedSprint.id);
+    }
+  };
+
+  // Handle ignore issue keys change
+  const handleIgnoreIssueKeysChange = (keys: string[]) => {
+    setIgnoreIssueKeys(keys);
+    localStorage.setItem(preferenceKeys.ignoreIssueKeys, JSON.stringify(keys));
     // Clear cache and reload metrics if we have a selected sprint
     if (selectedSprint) {
       cache.remove(cacheKeys.metrics(selectedSprint.id));
@@ -269,7 +303,7 @@ export default function DashboardPage() {
       const res = await fetch('/api/jql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jql, techLabels }),
+        body: JSON.stringify({ jql, techLabels, ignoreKeys: ignoreIssueKeys }),
       });
 
       if (!res.ok) {
@@ -329,11 +363,17 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b">
+      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">Jira Metrics Dashboard</h1>
             <div className="flex items-center gap-4">
+              <TechDebtSettings
+                techLabels={techLabels}
+                onSave={handleTechLabelsChange}
+                ignoreIssueKeys={ignoreIssueKeys}
+                onIgnoreIssueKeysChange={handleIgnoreIssueKeysChange}
+              />
               <span className="text-sm text-green-600 flex items-center gap-1">
                 ✓ Connected
               </span>
@@ -353,8 +393,6 @@ export default function DashboardPage() {
           <FilterPanel
             queryMode={queryMode}
             onQueryModeChange={setQueryMode}
-            boardType={boardType}
-            onBoardTypeChange={setBoardType}
             projects={projects}
             selectedProject={selectedProject}
             onProjectSelect={handleProjectSelect}
@@ -403,10 +441,17 @@ export default function DashboardPage() {
                 onIssuesClick={handleMetricClick}
                 tooltipText={`${issues?.cycleTime?.length || 0} completed issues`}
               />
-              <MetricCard
+              <ClickableMetricCard
                 title="Velocity"
                 value={`${metrics.velocity} pts`}
                 icon="🚀"
+                issues={issues?.all?.filter((issue: JiraIssue) => 
+                  issue.fields.status?.name?.toLowerCase() === 'done' ||
+                  issue.fields.status?.name?.toLowerCase() === 'closed' ||
+                  issue.fields.status?.name?.toLowerCase() === 'resolved'
+                ) || []}
+                onIssuesClick={handleMetricClick}
+                tooltipText="Completed issues"
               />
             </div>
 
@@ -425,19 +470,15 @@ export default function DashboardPage() {
                       { sprint: 'Sp44', cycleTime: 4.2 },
                       { sprint: 'Current', cycleTime: metrics.cycleTime.average },
                     ]}
+                    issues={issues?.all}
+                    onIssueClick={(issues) => handleMetricClick(issues, 'Cycle Time Details')}
                   />
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Tech Debt Ratio Trend</CardTitle>
-                    <TechDebtSettings
-                      techLabels={techLabels}
-                      onSave={handleTechLabelsChange}
-                    />
-                  </div>
+                  <CardTitle>Tech Debt Ratio Trend</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <TechDebtChart
@@ -446,6 +487,10 @@ export default function DashboardPage() {
                       { sprint: 'Sp44', techDebt: 10, product: 40 },
                       { sprint: 'Current', techDebt: metrics.techDebtIssues, product: metrics.productIssues },
                     ]}
+                    techIssues={issues?.techDebt}
+                    productIssues={issues?.product}
+                    onTechClick={(issues) => handleMetricClick(issues, 'Tech Debt Issues')}
+                    onProductClick={(issues) => handleMetricClick(issues, 'Product Issues')}
                   />
                 </CardContent>
               </Card>
@@ -485,7 +530,11 @@ export default function DashboardPage() {
                     <CardTitle>Created vs Resolved Trend</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <CreatedResolvedTrendChart data={chartData.createdResolvedTrend || []} />
+                    <CreatedResolvedTrendChart 
+                      data={chartData.createdResolvedTrend || []} 
+                      issues={issues?.all}
+                      onIssueClick={(issues) => handleMetricClick(issues, 'Issues for Selected Date')}
+                    />
                   </CardContent>
                 </Card>
 
@@ -496,7 +545,11 @@ export default function DashboardPage() {
                       <CardTitle>Workload Distribution</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <WorkloadDistributionChart data={chartData.workloadDistribution || []} />
+                      <WorkloadDistributionChart 
+                        data={chartData.workloadDistribution || []} 
+                        issues={issues?.all}
+                        onIssueClick={(issues) => handleMetricClick(issues, 'Workload Details')}
+                      />
                     </CardContent>
                   </Card>
 
@@ -528,11 +581,12 @@ export default function DashboardPage() {
       </main>
 
       {/* Issue Details Modal */}
-      <IssueDetailsModal
+      <ChartDetailsModal
         isOpen={modalOpen}
         title={modalTitle}
         issues={modalIssues}
         onClose={() => setModalOpen(false)}
+        techLabels={techLabels}
       />
     </div>
   );

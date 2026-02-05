@@ -4,6 +4,7 @@ import type { JiraIssue } from '@/types/jira';
 export function getStoryPoints(issue: JiraIssue): number {
   // Common story point field names
   const storyPointFields = [
+    'customfield_10039', // Confirmed field for this Jira instance
     'customfield_10016', // Most common
     'customfield_10026',
     'customfield_10002',
@@ -13,12 +14,14 @@ export function getStoryPoints(issue: JiraIssue): number {
 
   for (const field of storyPointFields) {
     const value = issue.fields[field];
-    if (typeof value === 'number' && value > 0) {
+    if (typeof value === 'number') {
+      // Return the value even if it's 0, as 0 is a valid story point value
       return value;
     }
   }
 
-  return 0;
+  // Default to 3 if no story points found
+  return 3;
 }
 
 // Calculate velocity (total story points completed)

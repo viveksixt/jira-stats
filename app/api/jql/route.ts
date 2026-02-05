@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { jql, techLabels } = body;
+    const { jql, techLabels, ignoreKeys } = body;
 
     if (!jql) {
       return NextResponse.json(
@@ -40,7 +40,18 @@ export async function POST(request: NextRequest) {
     );
 
     // Execute JQL query with changelog expansion
-    const issues = await client.searchIssues(jql, undefined, ['changelog']);
+    let issues = await client.searchIssues(jql, undefined, ['changelog']);
+
+    // Filter out cancelled issues (case-insensitive)
+    issues = issues.filter(issue => {
+      const status = issue.fields.status?.name?.toLowerCase() || '';
+      return status !== 'cancelled' && status !== 'canceled';
+    });
+
+    // Filter out ignored issue keys
+    if (ignoreKeys && ignoreKeys.length > 0) {
+      issues = issues.filter(issue => !ignoreKeys.includes(issue.key));
+    }
 
     if (issues.length === 0) {
       return NextResponse.json({

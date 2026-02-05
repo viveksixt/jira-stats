@@ -42,7 +42,7 @@ const DialogContent = ({ className = '', children, open, onOpenChange }: DialogC
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/50"
@@ -50,7 +50,7 @@ const DialogContent = ({ className = '', children, open, onOpenChange }: DialogC
       />
       
       {/* Dialog */}
-      <div className={`relative bg-background rounded-lg shadow-lg p-6 w-full max-w-lg mx-4 ${className}`}>
+      <div className={`relative bg-background rounded-lg shadow-lg p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto ${className}`}>
         {children}
       </div>
     </div>

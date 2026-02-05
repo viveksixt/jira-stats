@@ -47,9 +47,16 @@ const CustomTooltip = ({ active, payload }: any) => {
             <p className="mb-1">Issues:</p>
             <div className="flex flex-wrap gap-1 max-h-[100px] overflow-auto">
               {data.issues.slice(0, 10).map((key: string) => (
-                <span key={key} className="bg-muted px-1 rounded">
+                <a
+                  key={key}
+                  href={`https://sixt-cloud.atlassian.net/browse/${key}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-muted px-1 rounded text-blue-600 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {key}
-                </span>
+                </a>
               ))}
               {data.issues.length > 10 && (
                 <span className="text-muted-foreground">

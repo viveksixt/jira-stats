@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
     const component = searchParams.get('component');
     const techLabelsParam = searchParams.get('techLabels');
     const techLabels = techLabelsParam ? techLabelsParam.split(',').map(l => l.trim()) : undefined;
+    const ignoreKeysParam = searchParams.get('ignoreKeys');
+    const ignoreKeys = ignoreKeysParam ? ignoreKeysParam.split(',').map(k => k.trim()) : [];
 
     if (!sprintId) {
       return NextResponse.json(
@@ -50,6 +52,17 @@ export async function GET(request: NextRequest) {
       issues = issues.filter(issue => 
         issue.fields.components?.some(c => c.name === component)
       );
+    }
+
+    // Filter out cancelled issues (case-insensitive)
+    issues = issues.filter(issue => {
+      const status = issue.fields.status?.name?.toLowerCase() || '';
+      return status !== 'cancelled' && status !== 'canceled';
+    });
+
+    // Filter out ignored issue keys
+    if (ignoreKeys.length > 0) {
+      issues = issues.filter(issue => !ignoreKeys.includes(issue.key));
     }
 
     // Get sprint info using the new getSprint method

@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Button } from '@/components/ui/button';
+import type { JiraIssue } from '@/types/jira';
 
 interface TechDebtChartProps {
   data: Array<{
@@ -10,6 +11,10 @@ interface TechDebtChartProps {
     techDebt: number;
     product: number;
   }>;
+  techIssues?: JiraIssue[];
+  productIssues?: JiraIssue[];
+  onTechClick?: (issues: JiraIssue[]) => void;
+  onProductClick?: (issues: JiraIssue[]) => void;
 }
 
 const COLORS = {
@@ -32,8 +37,20 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-export function TechDebtChart({ data }: TechDebtChartProps) {
+export function TechDebtChart({ data, techIssues, productIssues, onTechClick, onProductClick }: TechDebtChartProps) {
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+
+  const handleTechDebtClick = (data: any) => {
+    if (techIssues && onTechClick) {
+      onTechClick(techIssues);
+    }
+  };
+
+  const handleProductClick = (data: any) => {
+    if (productIssues && onProductClick) {
+      onProductClick(productIssues);
+    }
+  };
 
   const toggleSeries = (seriesKey: string) => {
     const newHidden = new Set(hiddenSeries);
@@ -86,10 +103,22 @@ export function TechDebtChart({ data }: TechDebtChartProps) {
             <Tooltip content={<CustomTooltip />} />
             <Legend />
             {!hiddenSeries.has('techDebt') && (
-              <Bar dataKey="techDebt" fill={COLORS.techDebt} name="Tech Debt" />
+              <Bar 
+                dataKey="techDebt" 
+                fill={COLORS.techDebt} 
+                name="Tech Debt"
+                onClick={handleTechDebtClick}
+                style={{ cursor: 'pointer' }}
+              />
             )}
             {!hiddenSeries.has('product') && (
-              <Bar dataKey="product" fill={COLORS.product} name="Product Work" />
+              <Bar 
+                dataKey="product" 
+                fill={COLORS.product} 
+                name="Product Work"
+                onClick={handleProductClick}
+                style={{ cursor: 'pointer' }}
+              />
             )}
           </BarChart>
         </ResponsiveContainer>

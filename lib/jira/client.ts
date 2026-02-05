@@ -32,14 +32,13 @@ export class JiraClient {
 
   // Search issues with JQL
   async searchIssues(jql: string, fields?: string[], expand?: string[]): Promise<JiraIssue[]> {
+    const defaultFields = ['summary', 'status', 'issuetype', 'labels', 'components', 'assignee', 'created', 'updated', 'customfield_10039', 'customfield_10016', 'resolutiondate'];
+    
     const body: any = {
       jql,
       maxResults: 1000,
+      fields: fields && fields.length > 0 ? fields : defaultFields,
     };
-
-    if (fields && fields.length > 0) {
-      body.fields = fields;
-    }
 
     if (expand && expand.length > 0) {
       body.expand = expand.join(',');
@@ -117,6 +116,7 @@ export class JiraClient {
   async getSprintIssues(sprintId: number, expand?: string[]): Promise<JiraIssue[]> {
     const params = new URLSearchParams({
       maxResults: '1000',
+      fields: 'summary,status,issuetype,labels,components,assignee,created,updated,customfield_10039,customfield_10016,resolutiondate',
     });
 
     if (expand && expand.length > 0) {

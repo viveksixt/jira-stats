@@ -27,6 +27,8 @@ interface TrendDataPoint {
 
 interface CreatedResolvedTrendChartProps {
   data: TrendDataPoint[];
+  issues?: import('@/types/jira').JiraIssue[];
+  onIssueClick?: (issues: import('@/types/jira').JiraIssue[]) => void;
 }
 
 const SERIES_CONFIG = [
@@ -79,10 +81,25 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export function CreatedResolvedTrendChart({ data }: CreatedResolvedTrendChartProps) {
+export function CreatedResolvedTrendChart({ data, issues, onIssueClick }: CreatedResolvedTrendChartProps) {
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'total' | 'bugs' | 'stories'>('total');
   const [chartType, setChartType] = useState<'area' | 'line'>('area');
+
+  const handlePointClick = (dataPoint: any) => {
+    if (issues && onIssueClick && dataPoint && dataPoint.payload) {
+      // Show all issues for the clicked date
+      const clickedDate = dataPoint.payload.date;
+      const dateIssues = issues.filter(issue => {
+        const createdDate = new Date(issue.fields.created).toISOString().split('T')[0];
+        const resolvedDate = issue.fields.resolutiondate 
+          ? new Date(issue.fields.resolutiondate).toISOString().split('T')[0]
+          : null;
+        return createdDate === clickedDate || resolvedDate === clickedDate;
+      });
+      onIssueClick(dateIssues);
+    }
+  };
 
   const toggleSeries = (key: string) => {
     const newHidden = new Set(hiddenSeries);
@@ -228,6 +245,11 @@ export function CreatedResolvedTrendChart({ data }: CreatedResolvedTrendChartPro
                   stroke={series.color}
                   fill={series.color}
                   fillOpacity={0.3}
+                  activeDot={{
+                    r: 6,
+                    onClick: handlePointClick,
+                    style: { cursor: 'pointer' }
+                  }}
                 />
               ))}
             </AreaChart>
@@ -252,6 +274,11 @@ export function CreatedResolvedTrendChart({ data }: CreatedResolvedTrendChartPro
                   stroke={series.color}
                   strokeWidth={2}
                   dot={{ fill: series.color, r: 3 }}
+                  activeDot={{
+                    r: 6,
+                    onClick: handlePointClick,
+                    style: { cursor: 'pointer' }
+                  }}
                 />
               ))}
             </LineChart>

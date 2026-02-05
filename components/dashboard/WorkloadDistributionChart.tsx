@@ -23,6 +23,8 @@ interface WorkloadData {
 
 interface WorkloadDistributionChartProps {
   data: WorkloadData[];
+  issues?: import('@/types/jira').JiraIssue[];
+  onIssueClick?: (issues: import('@/types/jira').JiraIssue[]) => void;
 }
 
 const COLORS = {
@@ -69,8 +71,29 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export function WorkloadDistributionChart({ data }: WorkloadDistributionChartProps) {
+export function WorkloadDistributionChart({ data, issues, onIssueClick }: WorkloadDistributionChartProps) {
   const [hiddenAssignees, setHiddenAssignees] = useState<Set<string>>(new Set());
+
+  const handleBarClick = (data: any, statusCategory: 'done' | 'inProgress' | 'todo') => {
+    if (issues && onIssueClick && data && data.assignee) {
+      const assigneeName = data.assignee;
+      const filteredIssues = issues.filter(issue => {
+        const issueAssignee = issue.fields.assignee?.displayName || 'Unassigned';
+        const issueStatusCategory = issue.fields.status.statusCategory.key;
+        
+        // Match assignee
+        if (issueAssignee !== assigneeName) return false;
+        
+        // Match status category
+        if (statusCategory === 'done' && issueStatusCategory === 'done') return true;
+        if (statusCategory === 'inProgress' && issueStatusCategory === 'indeterminate') return true;
+        if (statusCategory === 'todo' && issueStatusCategory === 'new') return true;
+        
+        return false;
+      });
+      onIssueClick(filteredIssues);
+    }
+  };
 
   const toggleAssignee = (assignee: string) => {
     const newHidden = new Set(hiddenAssignees);
@@ -151,9 +174,30 @@ export function WorkloadDistributionChart({ data }: WorkloadDistributionChartPro
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend />
-            <Bar dataKey="done" name="Done" stackId="a" fill={COLORS.done} />
-            <Bar dataKey="inProgress" name="In Progress" stackId="a" fill={COLORS.inProgress} />
-            <Bar dataKey="todo" name="To Do" stackId="a" fill={COLORS.todo} />
+            <Bar 
+              dataKey="done" 
+              name="Done" 
+              stackId="a" 
+              fill={COLORS.done}
+              onClick={(data) => handleBarClick(data, 'done')}
+              style={{ cursor: 'pointer' }}
+            />
+            <Bar 
+              dataKey="inProgress" 
+              name="In Progress" 
+              stackId="a" 
+              fill={COLORS.inProgress}
+              onClick={(data) => handleBarClick(data, 'inProgress')}
+              style={{ cursor: 'pointer' }}
+            />
+            <Bar 
+              dataKey="todo" 
+              name="To Do" 
+              stackId="a" 
+              fill={COLORS.todo}
+              onClick={(data) => handleBarClick(data, 'todo')}
+              style={{ cursor: 'pointer' }}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>
