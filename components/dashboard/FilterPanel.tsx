@@ -5,8 +5,9 @@ import { QueryModeToggle } from './QueryModeToggle';
 import { ProjectFilter } from './ProjectFilter';
 import { SprintSelector } from './SprintSelector';
 import { BoardSelector } from './BoardSelector';
+import { ComponentSelector } from './ComponentSelector';
 import { JQLQueryPanel } from './JQLQueryPanel';
-import type { JiraBoard, JiraProject, JiraSprint, QueryMode } from '@/types/jira';
+import type { JiraBoard, JiraProject, JiraSprint, JiraComponent, QueryMode } from '@/types/jira';
 
 interface FilterPanelProps {
   // Mode
@@ -26,6 +27,11 @@ interface FilterPanelProps {
   selectedSprint: JiraSprint | null;
   onSprintSelect: (sprint: JiraSprint) => void;
 
+  components: JiraComponent[];
+  selectedComponent: JiraComponent | null;
+  onComponentSelect: (component: JiraComponent) => void;
+  onComponentClear: () => void;
+
   // JQL Mode
   onJQLExecute: (jql: string) => Promise<void>;
   jqlLoading?: boolean;
@@ -43,6 +49,10 @@ export function FilterPanel({
   sprints,
   selectedSprint,
   onSprintSelect,
+  components,
+  selectedComponent,
+  onComponentSelect,
+  onComponentClear,
   onJQLExecute,
   jqlLoading = false,
 }: FilterPanelProps) {
@@ -58,7 +68,7 @@ export function FilterPanel({
           {/* Board Mode Filters */}
           {queryMode === 'board' && (
             <div className="space-y-4">
-              {/* Row 2: Project + Board + Sprint on same line */}
+              {/* Row 2: Project + Board + Sprint + Component on same line */}
               <div className="flex flex-wrap items-center gap-4">
                 <ProjectFilter
                   projects={projects}
@@ -77,6 +87,15 @@ export function FilterPanel({
                     sprints={sprints}
                     selectedSprint={selectedSprint}
                     onSelect={onSprintSelect}
+                  />
+                )}
+
+                {selectedProject && (
+                  <ComponentSelector
+                    components={components}
+                    selectedComponent={selectedComponent}
+                    onSelect={onComponentSelect}
+                    onClear={onComponentClear}
                   />
                 )}
               </div>

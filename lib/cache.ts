@@ -85,5 +85,6 @@ export const preferenceKeys = {
   project: 'jira-stats-pref-project',
   board: 'jira-stats-pref-board',
   sprint: 'jira-stats-pref-sprint',
+  component: 'jira-stats-pref-component',
   jqlQuery: 'jira-stats-pref-jql-query',
 };

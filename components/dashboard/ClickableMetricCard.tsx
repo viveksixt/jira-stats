@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { InfoIcon } from '@/components/ui/info-icon';
 import type { JiraIssue } from '@/types/jira';
 
 interface ClickableMetricCardProps {
@@ -14,6 +15,8 @@ interface ClickableMetricCardProps {
   issues?: JiraIssue[];
   onIssuesClick?: (issues: JiraIssue[], title: string) => void;
   tooltipText?: string;
+  showInfoIcon?: boolean;
+  onInfoClick?: () => void;
 }
 
 export function ClickableMetricCard({
@@ -24,6 +27,8 @@ export function ClickableMetricCard({
   issues = [],
   onIssuesClick,
   tooltipText,
+  showInfoIcon = false,
+  onInfoClick,
 }: ClickableMetricCardProps) {
   const isPositive = change && change.value > 0;
   const isNegative = change && change.value < 0;
@@ -35,6 +40,11 @@ export function ClickableMetricCard({
     }
   };
 
+  const handleInfoClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onInfoClick?.();
+  };
+
   return (
     <Card
       className={isClickable ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}
@@ -42,11 +52,30 @@ export function ClickableMetricCard({
       title={tooltipText || (isClickable ? 'Click to view issues' : '')}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {icon && <span className="text-2xl">{icon}</span>}
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          {showInfoIcon && (
+            <button
+              onClick={handleInfoClick}
+              className="p-1 hover:bg-muted rounded transition-colors text-muted-foreground hover:text-foreground inline-flex items-center flex-shrink-0"
+              title="View calculation details"
+              type="button"
+            >
+              <InfoIcon />
+            </button>
+          )}
+        </div>
+        <div className="ml-auto">
+          {icon && <span className="text-2xl">{icon}</span>}
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+        <div className="text-2xl font-bold">
+          {value}
+          {isClickable && issues.length > 0 && (
+            <span className="text-xs text-muted-foreground ml-2">({issues.length} issues)</span>
+          )}
+        </div>
         {change && (
           <p className="text-xs text-muted-foreground mt-1">
             <span
@@ -62,13 +91,6 @@ export function ClickableMetricCard({
               {Math.abs(change.value)}%
             </span>{' '}
             {change.label}
-          </p>
-        )}
-        {isClickable && (
-          <p className="text-xs text-muted-foreground mt-2">
-            <span className="hover:underline cursor-pointer">
-              {issues.length} issues
-            </span>
           </p>
         )}
       </CardContent>

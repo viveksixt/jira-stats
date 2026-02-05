@@ -83,7 +83,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export function CreatedResolvedTrendChart({ data, issues, onIssueClick }: CreatedResolvedTrendChartProps) {
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<'total' | 'bugs' | 'stories'>('total');
+  const [viewMode, setViewMode] = useState<'total' | 'bugs' | 'stories' | 'stacked'>('stacked');
   const [chartType, setChartType] = useState<'area' | 'line'>('area');
 
   const handlePointClick = (event: any, data: any) => {
@@ -112,20 +112,44 @@ export function CreatedResolvedTrendChart({ data, issues, onIssueClick }: Create
   };
 
   const visibleSeries = useMemo(() => {
+    if (viewMode === 'stacked') {
+      return [
+        { key: 'bugsCreated', name: 'Bugs Created', color: '#f87171', type: 'bugs' },
+        { key: 'bugsResolved', name: 'Bugs Resolved', color: '#4ade80', type: 'bugs' },
+        { key: 'storiesCreated', name: 'Stories Created', color: '#60a5fa', type: 'stories' },
+        { key: 'storiesResolved', name: 'Stories Resolved', color: '#a78bfa', type: 'stories' },
+      ].filter(s => !hiddenSeries.has(s.key));
+    }
     return SERIES_CONFIG.filter(s => s.type === viewMode && !hiddenSeries.has(s.key));
   }, [viewMode, hiddenSeries]);
 
   const relevantSeries = useMemo(() => {
+    if (viewMode === 'stacked') {
+      return [
+        { key: 'bugsCreated', name: 'Bugs Created', color: '#f87171', type: 'bugs' },
+        { key: 'bugsResolved', name: 'Bugs Resolved', color: '#4ade80', type: 'bugs' },
+        { key: 'storiesCreated', name: 'Stories Created', color: '#60a5fa', type: 'stories' },
+        { key: 'storiesResolved', name: 'Stories Resolved', color: '#a78bfa', type: 'stories' },
+      ];
+    }
     return SERIES_CONFIG.filter(s => s.type === viewMode);
   }, [viewMode]);
 
   const summary = useMemo(() => {
-    const prefix = viewMode === 'total' ? '' : viewMode === 'bugs' ? 'bugs' : 'stories';
-    const createdKey = viewMode === 'total' ? 'created' : `${prefix}Created`;
-    const resolvedKey = viewMode === 'total' ? 'resolved' : `${prefix}Resolved`;
+    let createdKey: keyof TrendDataPoint;
+    let resolvedKey: keyof TrendDataPoint;
 
-    const totalCreated = data.reduce((sum, d) => sum + (d[createdKey as keyof TrendDataPoint] as number || 0), 0);
-    const totalResolved = data.reduce((sum, d) => sum + (d[resolvedKey as keyof TrendDataPoint] as number || 0), 0);
+    if (viewMode === 'stacked') {
+      createdKey = 'bugsCreated';
+      resolvedKey = 'bugsResolved';
+    } else {
+      const prefix = viewMode === 'total' ? '' : viewMode === 'bugs' ? 'bugs' : 'stories';
+      createdKey = viewMode === 'total' ? 'created' : `${prefix}Created` as keyof TrendDataPoint;
+      resolvedKey = viewMode === 'total' ? 'resolved' : `${prefix}Resolved` as keyof TrendDataPoint;
+    }
+
+    const totalCreated = data.reduce((sum, d) => sum + (d[createdKey] as number || 0), 0);
+    const totalResolved = data.reduce((sum, d) => sum + (d[resolvedKey] as number || 0), 0);
 
     return {
       totalCreated,
@@ -139,6 +163,13 @@ export function CreatedResolvedTrendChart({ data, issues, onIssueClick }: Create
       {/* View Mode Toggle */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex gap-1">
+          <Button
+            variant={viewMode === 'stacked' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('stacked')}
+          >
+            Bugs & Stories
+          </Button>
           <Button
             variant={viewMode === 'total' ? 'default' : 'outline'}
             size="sm"
@@ -245,6 +276,7 @@ export function CreatedResolvedTrendChart({ data, issues, onIssueClick }: Create
                   stroke={series.color}
                   fill={series.color}
                   fillOpacity={0.3}
+                  stackId={viewMode === 'stacked' ? 'stack' : undefined}
                   activeDot={{
                     r: 6,
                     onClick: handlePointClick,

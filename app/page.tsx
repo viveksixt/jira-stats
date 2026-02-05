@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { ClickableMetricCard } from '@/components/dashboard/ClickableMetricCard';
 import { ChartDetailsModal } from '@/components/dashboard/ChartDetailsModal';
+import { MetricInfoModal } from '@/components/dashboard/MetricInfoModal';
 import { CycleTimeChart } from '@/components/dashboard/CycleTimeChart';
 import { TechDebtChart } from '@/components/dashboard/TechDebtChart';
 import { TechDebtSettings } from '@/components/dashboard/TechDebtSettings';
 import { AssigneeStoryPointsChart } from '@/components/dashboard/AssigneeStoryPointsChart';
 import { BugsVsStoriesChart } from '@/components/dashboard/BugsVsStoriesChart';
 import { CreatedResolvedTrendChart } from '@/components/dashboard/CreatedResolvedTrendChart';
-import { ProductionBugsTrendChart } from '@/components/dashboard/ProductionBugsTrendChart';
 import { WorkloadDistributionChart } from '@/components/dashboard/WorkloadDistributionChart';
 import { IssueAgingChart } from '@/components/dashboard/IssueAgingChart';
 import { FilterPanel } from '@/components/dashboard/FilterPanel';
@@ -21,7 +21,7 @@ import { ClearAllToasts } from '@/components/ui/clear-all-toasts';
 import { showSuccess, showError, showLoading } from '@/lib/toast';
 import { cache, cacheKeys, preferenceKeys } from '@/lib/cache';
 import { DEFAULT_TECH_LABELS } from '@/lib/metrics/kpi';
-import type { JiraBoard, JiraProject, JiraSprint, QueryMode, BoardType, JiraIssue } from '@/types/jira';
+import type { JiraBoard, JiraProject, JiraSprint, QueryMode, BoardType, JiraIssue, JiraComponent } from '@/types/jira';
 import { toast } from 'sonner';
 
 export default function DashboardPage() {
@@ -39,6 +39,8 @@ export default function DashboardPage() {
   const [selectedBoard, setSelectedBoard] = useState<JiraBoard | null>(null);
   const [sprints, setSprints] = useState<JiraSprint[]>([]);
   const [selectedSprint, setSelectedSprint] = useState<JiraSprint | null>(null);
+  const [components, setComponents] = useState<JiraComponent[]>([]);
+  const [selectedComponent, setSelectedComponent] = useState<JiraComponent | null>(null);
 
   // JQL mode state
   const [jqlLoading, setJqlLoading] = useState(false);
@@ -87,6 +89,10 @@ export default function DashboardPage() {
   const [modalIssues, setModalIssues] = useState<JiraIssue[]>([]);
   const [modalShowAge, setModalShowAge] = useState(false);
 
+  // Metric Info Modal
+  const [metricInfoOpen, setMetricInfoOpen] = useState(false);
+  const [selectedMetricType, setSelectedMetricType] = useState<'kpi' | 'techDebtRatio' | 'cycleTime' | 'velocity' | null>(null);
+
   // Initialize
   useEffect(() => {
     const checkConnection = async () => {
@@ -125,6 +131,7 @@ export default function DashboardPage() {
         if (found) {
           setSelectedProject(found);
           loadBoards(found.key);
+          loadComponents(found.key);
         }
       }
     }
@@ -155,6 +162,19 @@ export default function DashboardPage() {
       }
     }
   }, [sprints]);
+
+  // Restore component selection
+  useEffect(() => {
+    if (components.length > 0) {
+      const savedComponentName = localStorage.getItem(preferenceKeys.component);
+      if (savedComponentName) {
+        const found = components.find(c => c.name === savedComponentName);
+        if (found) {
+          setSelectedComponent(found);
+        }
+      }
+    }
+  }, [components]);
 
   const loadProjects = async () => {
     const cachedProjects = cache.get<JiraProject[]>(cacheKeys.projects);
@@ -216,6 +236,29 @@ export default function DashboardPage() {
     }
   };
 
+  const loadComponents = async (projectKey: string) => {
+    const cacheKey = cacheKeys.components(projectKey);
+    const cachedComponents = cache.get<JiraComponent[]>(cacheKey);
+    if (cachedComponents) {
+      setComponents(cachedComponents);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/components?projectKey=${projectKey}`);
+      if (!res.ok) {
+        throw new Error('Failed to load components');
+      }
+      const data = await res.json();
+      const componentsList = data.components || [];
+      setComponents(componentsList);
+      cache.set(cacheKey, componentsList, 600000);
+    } catch (error) {
+      console.error('Failed to load components:', error);
+      setComponents([]);
+    }
+  };
+
   // Removed board type change handler as board type toggle was removed
 
   // Handle project change
@@ -223,8 +266,10 @@ export default function DashboardPage() {
     setSelectedProject(project);
     localStorage.setItem(preferenceKeys.project, project.key);
     loadBoards(project.key);
+    loadComponents(project.key);
     setSprints([]);
     setSelectedSprint(null);
+    setSelectedComponent(null);
     setMetrics(null);
   };
 
@@ -294,7 +339,8 @@ export default function DashboardPage() {
     try {
       const techLabelsParam = techLabels.join(',');
       const ignoreKeysParam = ignoreIssueKeys.join(',');
-      const res = await fetch(`/api/metrics?sprintId=${sprintId}&techLabels=${encodeURIComponent(techLabelsParam)}&ignoreKeys=${encodeURIComponent(ignoreKeysParam)}`);
+      const componentParam = selectedComponent ? `&component=${encodeURIComponent(selectedComponent.name)}` : '';
+      const res = await fetch(`/api/metrics?sprintId=${sprintId}&techLabels=${encodeURIComponent(techLabelsParam)}&ignoreKeys=${encodeURIComponent(ignoreKeysParam)}${componentParam}`);
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || 'Failed to calculate metrics');
@@ -334,6 +380,28 @@ export default function DashboardPage() {
     setIgnoreIssueKeys(keys);
     localStorage.setItem(preferenceKeys.ignoreIssueKeys, JSON.stringify(keys));
     // Clear cache and reload metrics if we have a selected sprint
+    if (selectedSprint) {
+      cache.remove(cacheKeys.metrics(selectedSprint.id));
+      loadMetrics(selectedSprint.id);
+    }
+  };
+
+  // Handle component selection
+  const handleComponentSelect = (component: JiraComponent) => {
+    setSelectedComponent(component);
+    localStorage.setItem(preferenceKeys.component, component.name);
+    // Clear metrics cache and reload with new component filter
+    if (selectedSprint) {
+      cache.remove(cacheKeys.metrics(selectedSprint.id));
+      loadMetrics(selectedSprint.id);
+    }
+  };
+
+  // Handle component clear
+  const handleComponentClear = () => {
+    setSelectedComponent(null);
+    localStorage.removeItem(preferenceKeys.component);
+    // Clear metrics cache and reload without component filter
     if (selectedSprint) {
       cache.remove(cacheKeys.metrics(selectedSprint.id));
       loadMetrics(selectedSprint.id);
@@ -462,6 +530,10 @@ export default function DashboardPage() {
               setSelectedSprint(sprint);
               setMetrics(null);
             }}
+            components={components}
+            selectedComponent={selectedComponent}
+            onComponentSelect={handleComponentSelect}
+            onComponentClear={handleComponentClear}
             onJQLExecute={handleJQLExecute}
             jqlLoading={jqlLoading}
           />
@@ -478,6 +550,11 @@ export default function DashboardPage() {
                 issues={issues?.product || []}
                 onIssuesClick={handleMetricClick}
                 tooltipText={`${issues?.product?.length || 0} product issues`}
+                showInfoIcon={true}
+                onInfoClick={() => {
+                  setSelectedMetricType('kpi');
+                  setMetricInfoOpen(true);
+                }}
               />
               <ClickableMetricCard
                 title="Tech Debt Ratio"
@@ -486,6 +563,11 @@ export default function DashboardPage() {
                 issues={issues?.techDebt || []}
                 onIssuesClick={handleMetricClick}
                 tooltipText={`${issues?.techDebt?.length || 0} tech debt issues`}
+                showInfoIcon={true}
+                onInfoClick={() => {
+                  setSelectedMetricType('techDebtRatio');
+                  setMetricInfoOpen(true);
+                }}
               />
               <ClickableMetricCard
                 title="Cycle Time"
@@ -494,6 +576,11 @@ export default function DashboardPage() {
                 issues={issues?.cycleTime || []}
                 onIssuesClick={handleMetricClick}
                 tooltipText={`${issues?.cycleTime?.length || 0} completed issues`}
+                showInfoIcon={true}
+                onInfoClick={() => {
+                  setSelectedMetricType('cycleTime');
+                  setMetricInfoOpen(true);
+                }}
               />
               <ClickableMetricCard
                 title="Velocity"
@@ -506,6 +593,11 @@ export default function DashboardPage() {
                 ) || []}
                 onIssuesClick={handleMetricClick}
                 tooltipText="Completed issues"
+                showInfoIcon={true}
+                onInfoClick={() => {
+                  setSelectedMetricType('velocity');
+                  setMetricInfoOpen(true);
+                }}
               />
             </div>
 
@@ -600,13 +692,13 @@ export default function DashboardPage() {
                   </Card>
                 </div>
 
-                {/* Created vs Resolved Trend */}
+                {/* Issue Trend (Bugs vs Stories) */}
                 <Card className="mb-6">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle>Created vs Resolved Trend</CardTitle>
+                    <CardTitle>Issue Trend (Bugs vs Stories)</CardTitle>
                     <button 
                       className="text-sm text-blue-600 hover:underline cursor-pointer"
-                      onClick={() => handleMetricClick(issues?.all || [], 'Created vs Resolved - All Issues')}
+                      onClick={() => handleMetricClick(issues?.all || [], 'Issue Trend - All Issues')}
                     >
                       View All
                     </button>
@@ -616,26 +708,6 @@ export default function DashboardPage() {
                       data={chartData.createdResolvedTrend || []} 
                       issues={issues?.all}
                       onIssueClick={(issues) => handleMetricClick(issues, 'Issues for Selected Date')}
-                    />
-                  </CardContent>
-                </Card>
-
-                {/* Production Bugs Trend */}
-                <Card className="mb-6">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle>Production Bugs Trend</CardTitle>
-                    <button 
-                      className="text-sm text-blue-600 hover:underline cursor-pointer"
-                      onClick={() => handleMetricClick(issues?.productionBugs || [], 'Production Bugs - All Issues')}
-                    >
-                      View All
-                    </button>
-                  </CardHeader>
-                  <CardContent>
-                    <ProductionBugsTrendChart 
-                      data={chartData.productionBugsTrend || []} 
-                      issues={issues?.productionBugs}
-                      onIssueClick={(issues) => handleMetricClick(issues, 'Production Bugs for Selected Date')}
                     />
                   </CardContent>
                 </Card>
@@ -712,6 +784,13 @@ export default function DashboardPage() {
         onClose={() => setModalOpen(false)}
         techLabels={techLabels}
         showAge={modalShowAge}
+      />
+
+      {/* Metric Info Modal */}
+      <MetricInfoModal
+        open={metricInfoOpen}
+        onOpenChange={setMetricInfoOpen}
+        metricType={selectedMetricType}
       />
 
       {/* Clear All Notifications Button - Fixed Bottom Right */}
