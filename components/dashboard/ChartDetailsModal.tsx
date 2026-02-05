@@ -120,12 +120,12 @@ export function ChartDetailsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 z-40 pointer-events-auto" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-background border rounded-lg shadow-lg w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative bg-background border rounded-lg shadow-lg w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden flex flex-col z-50 pointer-events-auto">
         {/* Header */}
         <div className="flex items-center justify-between border-b p-6">
           <h2 className="text-lg font-semibold">{title}</h2>

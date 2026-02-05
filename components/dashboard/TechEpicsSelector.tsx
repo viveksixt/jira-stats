@@ -105,7 +105,7 @@ export function TechEpicsSelector({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="min-w-[150px] justify-start">
+        <Button variant="outline" size="sm" className="w-full justify-start">
           <span className="truncate">
             Tech Epics
             {selectedEpicKeys.length > 0 && (

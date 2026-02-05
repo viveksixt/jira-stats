@@ -14,13 +14,15 @@ import { BugsVsStoriesChart } from '@/components/dashboard/BugsVsStoriesChart';
 import { BugsTrendChart } from '@/components/dashboard/BugsTrendChart';
 import { WorkloadDistributionChart } from '@/components/dashboard/WorkloadDistributionChart';
 import { IssueAgingChart } from '@/components/dashboard/IssueAgingChart';
-import { FilterPanel } from '@/components/dashboard/FilterPanel';
+import { FilterIcon } from '@/components/dashboard/FilterIcon';
+import { PresetManagementModal } from '@/components/dashboard/PresetManagementModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ClearAllToasts } from '@/components/ui/clear-all-toasts';
 import { showSuccess, showError, showLoading } from '@/lib/toast';
 import { cache, cacheKeys, preferenceKeys } from '@/lib/cache';
 import { DEFAULT_TECH_LABELS } from '@/lib/metrics/kpi';
+import { loadPreset, type FilterPreset } from '@/lib/filter-presets';
 import type { JiraBoard, JiraProject, JiraSprint, QueryMode, BoardType, JiraIssue } from '@/types/jira';
 import { toast } from 'sonner';
 
@@ -38,7 +40,8 @@ export default function DashboardPage() {
   const [boards, setBoards] = useState<JiraBoard[]>([]);
   const [selectedBoard, setSelectedBoard] = useState<JiraBoard | null>(null);
   const [sprints, setSprints] = useState<JiraSprint[]>([]);
-  const [selectedSprint, setSelectedSprint] = useState<JiraSprint | null>(null);
+  const [selectedSprints, setSelectedSprints] = useState<JiraSprint[]>([]);
+  const [presetModalOpen, setPresetModalOpen] = useState(false);
 
   // JQL mode state
   const [jqlLoading, setJqlLoading] = useState(false);
@@ -169,7 +172,7 @@ export default function DashboardPage() {
       if (savedSprintId) {
         const found = sprints.find(s => s.id === parseInt(savedSprintId));
         if (found) {
-          setSelectedSprint(found);
+          setSelectedSprints([found]);
         }
       }
     }
@@ -243,7 +246,7 @@ export default function DashboardPage() {
     localStorage.setItem(preferenceKeys.project, project.key);
     loadBoards(project.key);
     setSprints([]);
-    setSelectedSprint(null);
+    setSelectedSprints([]);
     setMetrics(null);
   };
 
@@ -264,7 +267,7 @@ export default function DashboardPage() {
       const closedSprints = cachedSprints.filter((s) => s.state === 'closed');
       setSprints(closedSprints);
       if (closedSprints.length > 0) {
-        setSelectedSprint(closedSprints[closedSprints.length - 1]);
+        setSelectedSprints([closedSprints[closedSprints.length - 1]]);
       }
       return;
     }
@@ -281,7 +284,7 @@ export default function DashboardPage() {
       setSprints(closedSprints);
       cache.set(cacheKeys.sprints(boardId), data.sprints || [], 600000);
       if (closedSprints.length > 0) {
-        setSelectedSprint(closedSprints[closedSprints.length - 1]);
+        setSelectedSprints([closedSprints[closedSprints.length - 1]]);
       }
       toast.success(`Loaded ${closedSprints.length} closed sprints`, { id: toastId });
     } catch (error) {
@@ -295,14 +298,18 @@ export default function DashboardPage() {
 
   // Load metrics when sprint changes
   useEffect(() => {
-    if (selectedSprint) {
-      loadMetrics(selectedSprint.id);
-      localStorage.setItem(preferenceKeys.sprint, selectedSprint.id.toString());
+    if (selectedSprints.length > 0) {
+      // For now, load metrics for the first sprint (we'll enhance this for multi-sprint later)
+      const sprintIds = selectedSprints.map(s => s.id).join(',');
+      loadMetrics(sprintIds);
+      localStorage.setItem(preferenceKeys.sprint, selectedSprints[0].id.toString());
     }
-  }, [selectedSprint]);
+  }, [selectedSprints]);
 
-  const loadMetrics = async (sprintId: number) => {
-    const cachedMetrics = cache.get<any>(cacheKeys.metrics(sprintId));
+  const loadMetrics = async (sprintIds: string) => {
+    // Use first sprint ID as cache key for now
+    const firstSprintId = sprintIds.split(',')[0];
+    const cachedMetrics = cache.get<any>(cacheKeys.metrics(parseInt(firstSprintId)));
     if (cachedMetrics) {
       setMetrics(cachedMetrics.metrics || cachedMetrics);
       setChartData(cachedMetrics.chartData || null);
@@ -317,7 +324,7 @@ export default function DashboardPage() {
       const techLabelsParam = techLabels.join(',');
       const ignoreKeysParam = ignoreIssueKeys.join(',');
       const techEpicKeysParam = techEpicKeys.join(',');
-      const res = await fetch(`/api/metrics?sprintId=${sprintId}&techLabels=${encodeURIComponent(techLabelsParam)}&ignoreKeys=${encodeURIComponent(ignoreKeysParam)}&techEpicKeys=${encodeURIComponent(techEpicKeysParam)}`);
+      const res = await fetch(`/api/metrics?sprintIds=${sprintIds}&techLabels=${encodeURIComponent(techLabelsParam)}&ignoreKeys=${encodeURIComponent(ignoreKeysParam)}&techEpicKeys=${encodeURIComponent(techEpicKeysParam)}`);
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || 'Failed to calculate metrics');
@@ -327,7 +334,7 @@ export default function DashboardPage() {
       setChartData(data.chartData);
       setIssues(data.issues || null);
       setIssuesByType(data.issuesByType || null);
-      cache.set(cacheKeys.metrics(sprintId), data, 600000);
+      cache.set(cacheKeys.metrics(parseInt(firstSprintId)), data, 600000);
       toast.success('Metrics calculated successfully', { id: toastId });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to calculate metrics';
@@ -345,10 +352,13 @@ export default function DashboardPage() {
   const handleTechLabelsChange = (labels: string[]) => {
     setTechLabels(labels);
     localStorage.setItem(preferenceKeys.techLabels, JSON.stringify(labels));
-    // Clear cache and reload metrics if we have a selected sprint
-    if (selectedSprint) {
-      cache.remove(cacheKeys.metrics(selectedSprint.id));
-      loadMetrics(selectedSprint.id);
+    // Clear cache and reload metrics if we have selected sprints
+    if (selectedSprints.length > 0) {
+      selectedSprints.forEach(sprint => {
+        cache.remove(cacheKeys.metrics(sprint.id));
+      });
+      const sprintIds = selectedSprints.map(s => s.id).join(',');
+      loadMetrics(sprintIds);
     }
   };
 
@@ -356,10 +366,13 @@ export default function DashboardPage() {
   const handleIgnoreIssueKeysChange = (keys: string[]) => {
     setIgnoreIssueKeys(keys);
     localStorage.setItem(preferenceKeys.ignoreIssueKeys, JSON.stringify(keys));
-    // Clear cache and reload metrics if we have a selected sprint
-    if (selectedSprint) {
-      cache.remove(cacheKeys.metrics(selectedSprint.id));
-      loadMetrics(selectedSprint.id);
+    // Clear cache and reload metrics if we have selected sprints
+    if (selectedSprints.length > 0) {
+      selectedSprints.forEach(sprint => {
+        cache.remove(cacheKeys.metrics(sprint.id));
+      });
+      const sprintIds = selectedSprints.map(s => s.id).join(',');
+      loadMetrics(sprintIds);
     }
   };
 
@@ -367,10 +380,13 @@ export default function DashboardPage() {
   const handleTechEpicKeysChange = (keys: string[]) => {
     setTechEpicKeys(keys);
     localStorage.setItem(preferenceKeys.techEpicKeys, JSON.stringify(keys));
-    // Clear cache and reload metrics if we have a selected sprint
-    if (selectedSprint) {
-      cache.remove(cacheKeys.metrics(selectedSprint.id));
-      loadMetrics(selectedSprint.id);
+    // Clear cache and reload metrics if we have selected sprints
+    if (selectedSprints.length > 0) {
+      selectedSprints.forEach(sprint => {
+        cache.remove(cacheKeys.metrics(sprint.id));
+      });
+      const sprintIds = selectedSprints.map(s => s.id).join(',');
+      loadMetrics(sprintIds);
     }
   };
 
@@ -378,7 +394,7 @@ export default function DashboardPage() {
   const handleClearFilters = () => {
     setSelectedProject(null);
     setSelectedBoard(null);
-    setSelectedSprint(null);
+    setSelectedSprints([]);
     setTechEpicKeys([]);
     setSprints([]);
     setMetrics(null);
@@ -387,6 +403,44 @@ export default function DashboardPage() {
     localStorage.removeItem(preferenceKeys.board);
     localStorage.removeItem(preferenceKeys.sprint);
     localStorage.removeItem(preferenceKeys.techEpicKeys);
+  };
+
+  // Handle loading a preset
+  const handleLoadPreset = (preset: FilterPreset) => {
+    // Load project
+    if (preset.projectKey) {
+      const foundProject = projects.find(p => p.key === preset.projectKey);
+      if (foundProject) {
+        setSelectedProject(foundProject);
+        loadBoards(foundProject.key);
+      }
+    } else {
+      setSelectedProject(null);
+    }
+
+    // Load board
+    if (preset.boardId) {
+      const foundBoard = boards.find(b => b.id === preset.boardId);
+      if (foundBoard) {
+        setSelectedBoard(foundBoard);
+      }
+    } else {
+      setSelectedBoard(null);
+    }
+
+    // Load sprints
+    if (preset.sprintIds.length > 0) {
+      const foundSprints = sprints.filter(s => preset.sprintIds.includes(s.id));
+      setSelectedSprints(foundSprints);
+    } else {
+      setSelectedSprints([]);
+    }
+
+    // Load tech epic keys
+    setTechEpicKeys(preset.techEpicKeys);
+    localStorage.setItem(preferenceKeys.techEpicKeys, JSON.stringify(preset.techEpicKeys));
+
+    setPresetModalOpen(false);
   };
 
   // Handle JQL query execution
@@ -463,6 +517,35 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">Jira Metrics Dashboard</h1>
             <div className="flex items-center gap-4">
+              <FilterIcon
+                queryMode={queryMode}
+                onQueryModeChange={setQueryMode}
+                projects={projects}
+                selectedProject={selectedProject}
+                onProjectSelect={(project) => {
+                  setSelectedProject(project);
+                  localStorage.setItem(preferenceKeys.project, project.key);
+                  loadBoards(project.key);
+                  setSprints([]);
+                  setSelectedSprints([]);
+                  setMetrics(null);
+                }}
+                boards={boards}
+                selectedBoard={selectedBoard}
+                onBoardSelect={(board) => {
+                  setSelectedBoard(board);
+                  setMetrics(null);
+                }}
+                sprints={sprints}
+                selectedSprints={selectedSprints}
+                onSprintsSelect={setSelectedSprints}
+                techEpicKeys={techEpicKeys}
+                onTechEpicKeysChange={handleTechEpicKeysChange}
+                onClearFilters={handleClearFilters}
+                onJQLExecute={handleJQLExecute}
+                jqlLoading={jqlLoading}
+                onPresetManagement={() => setPresetModalOpen(true)}
+              />
               <TechDebtSettings
                 techLabels={techLabels}
                 onSave={handleTechLabelsChange}
@@ -491,33 +574,6 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
-        {/* Filter Panel */}
-        <div className="mb-6">
-          <FilterPanel
-            queryMode={queryMode}
-            onQueryModeChange={setQueryMode}
-            projects={projects}
-            selectedProject={selectedProject}
-            onProjectSelect={handleProjectSelect}
-            boards={boards}
-            selectedBoard={selectedBoard}
-            onBoardSelect={(board) => {
-              setSelectedBoard(board);
-              setMetrics(null);
-            }}
-            sprints={sprints}
-            selectedSprint={selectedSprint}
-            onSprintSelect={(sprint) => {
-              setSelectedSprint(sprint);
-              setMetrics(null);
-            }}
-            techEpicKeys={techEpicKeys}
-            onTechEpicKeysChange={handleTechEpicKeysChange}
-            onClearFilters={handleClearFilters}
-            onJQLExecute={handleJQLExecute}
-            jqlLoading={jqlLoading}
-          />
-        </div>
 
         {/* Metrics Cards */}
         {metrics && (
@@ -597,7 +653,7 @@ export default function DashboardPage() {
                 <CardContent>
                   <CycleTimeChart
                     data={[
-                      { sprint: selectedSprint?.name || 'Current', cycleTime: metrics.cycleTime.average },
+                      { sprint: selectedSprints.length > 0 ? selectedSprints[0].name : 'Current', cycleTime: metrics.cycleTime.average },
                     ]}
                     issues={issues?.all}
                     onIssueClick={(issues) => handleMetricClick(issues, 'Cycle Time Details', true)}
@@ -618,7 +674,7 @@ export default function DashboardPage() {
                 <CardContent>
                   <TechDebtChart
                     data={[
-                      { sprint: selectedSprint?.name || 'Current', techDebt: metrics.techDebtIssues, product: metrics.productIssues },
+                      { sprint: selectedSprints.length > 0 ? selectedSprints[0].name : 'Current', techDebt: metrics.techDebtIssues, product: metrics.productIssues },
                     ]}
                     techIssues={issues?.techDebt}
                     productIssues={issues?.product}
@@ -747,7 +803,7 @@ export default function DashboardPage() {
         {!metrics && (
           <div className="text-center py-12">
             <p className="text-muted-foreground">
-              {queryMode === 'board' && selectedSprint
+              {queryMode === 'board' && selectedSprints.length > 0
                 ? 'Loading metrics...'
                 : queryMode === 'jql'
                   ? 'Enter a JQL query to get started'
@@ -772,6 +828,21 @@ export default function DashboardPage() {
         open={metricInfoOpen}
         onOpenChange={setMetricInfoOpen}
         metricType={selectedMetricType}
+      />
+
+      {/* Preset Management Modal */}
+      <PresetManagementModal
+        isOpen={presetModalOpen}
+        onClose={() => setPresetModalOpen(false)}
+        onLoadPreset={handleLoadPreset}
+        queryMode={queryMode}
+        selectedProject={selectedProject}
+        selectedBoard={selectedBoard}
+        selectedSprints={selectedSprints}
+        techEpicKeys={techEpicKeys}
+        projects={projects}
+        boards={boards}
+        sprints={sprints}
       />
 
       {/* Clear All Notifications Button - Fixed Bottom Right */}

@@ -32,8 +32,7 @@ export function BoardSelector({ boards, selectedBoard, onSelect }: BoardSelector
       getItemDescription={getBoardDescription}
       searchKeys={getBoardSearchKeys}
       placeholder="Search boards..."
-      label="Board:"
-      className="min-w-[250px]"
+      className="w-full"
       maxResults={10}
     />
   );

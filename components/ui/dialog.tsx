@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 
 interface DialogProps {
   open?: boolean;
@@ -43,8 +44,14 @@ const DialogContent = ({ className = '', children, open, onOpenChange }: DialogC
   const [isDragging, setIsDragging] = React.useState(false);
   const [dragOffset, setDragOffset] = React.useState({ x: 0, y: 0 });
   const [isInitialized, setIsInitialized] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const headerRef = React.useRef<HTMLDivElement>(null);
+
+  // Ensure component is mounted to prevent SSR hydration mismatch
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Initialize dialog to be vertically centered when opened
   React.useEffect(() => {
@@ -114,10 +121,10 @@ const DialogContent = ({ className = '', children, open, onOpenChange }: DialogC
     };
   }, [isDragging, dragOffset]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/50"
@@ -127,7 +134,7 @@ const DialogContent = ({ className = '', children, open, onOpenChange }: DialogC
       {/* Dialog */}
       <div 
         ref={dialogRef}
-        className={`fixed bg-background rounded-lg shadow-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto z-50 left-1/2 -translate-x-1/2 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} ${className}`}
+        className={`fixed bg-background rounded-lg shadow-lg p-6 z-[100] left-1/2 -translate-x-1/2 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} ${className}`}
         style={{
           transform: `translate(calc(-50% + ${position.x}px), ${position.y}px)`,
           transition: isDragging ? 'none' : 'transform 0.2s ease-out',
@@ -138,7 +145,8 @@ const DialogContent = ({ className = '', children, open, onOpenChange }: DialogC
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

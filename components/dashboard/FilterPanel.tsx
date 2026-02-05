@@ -96,16 +96,16 @@ export function FilterPanel({
                 />
               )}
 
-              {(selectedProject || selectedBoard || selectedSprint || techEpicKeys.length > 0) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onClearFilters}
-                  title="Clear all filters"
-                >
-                  🗑️
-                </Button>
-              )}
+                {(selectedProject || selectedBoard || selectedSprint || techEpicKeys.length > 0) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onClearFilters}
+                    title="Clear all filters"
+                  >
+                    🧹
+                  </Button>
+                )}
             </div>
           )}
 

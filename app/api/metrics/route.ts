@@ -26,7 +26,9 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const sprintId = searchParams.get('sprintId');
+    const sprintIdsParam = searchParams.get('sprintIds');
+    const sprintId = searchParams.get('sprintId'); // Keep for backwards compatibility
+    const actualSprintIds = sprintIdsParam ? sprintIdsParam.split(',').map(id => parseInt(id)) : (sprintId ? [parseInt(sprintId)] : []);
     const component = searchParams.get('component');
     const techLabelsParam = searchParams.get('techLabels');
     const techLabels = techLabelsParam ? techLabelsParam.split(',').map(l => l.trim()) : undefined;
@@ -35,9 +37,9 @@ export async function GET(request: NextRequest) {
     const techEpicKeysParam = searchParams.get('techEpicKeys');
     const techEpicKeys = techEpicKeysParam ? techEpicKeysParam.split(',').map(k => k.trim()) : [];
 
-    if (!sprintId) {
+    if (!actualSprintIds || actualSprintIds.length === 0) {
       return NextResponse.json(
-        { error: 'sprintId parameter required' },
+        { error: 'sprintIds or sprintId parameter required' },
         { status: 400 }
       );
     }
@@ -48,8 +50,12 @@ export async function GET(request: NextRequest) {
       connection.credentials
     );
 
-    // Fetch issues with changelog for cycle time calculation
-    let issues = await client.getSprintIssues(parseInt(sprintId), ['changelog']);
+    // Fetch issues from all selected sprints
+    let issues: any[] = [];
+    for (const sprintId of actualSprintIds) {
+      const sprintIssues = await client.getSprintIssues(sprintId, ['changelog']);
+      issues.push(...sprintIssues);
+    }
 
     // Filter by component if specified
     if (component) {
@@ -75,10 +81,11 @@ export async function GET(request: NextRequest) {
       issues = issues.filter(issue => !ignoreKeys.includes(issue.key));
     }
 
-    // Get sprint info using the new getSprint method
+    // Get sprint info for the first sprint (for comparison view enhancement later)
+    const firstSprintId = actualSprintIds[0];
     let sprint;
     try {
-      sprint = await client.getSprint(parseInt(sprintId));
+      sprint = await client.getSprint(firstSprintId);
     } catch (error) {
       return NextResponse.json(
         { error: 'Sprint not found' },
@@ -88,7 +95,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate metrics
     const metrics = calculateSprintMetrics(
-      sprintId,
+      firstSprintId,
       sprint.name,
       issues,
       component || undefined,

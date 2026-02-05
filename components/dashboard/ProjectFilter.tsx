@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import type { JiraProject } from '@/types/jira';
 
 interface ProjectFilterProps {
@@ -75,11 +74,8 @@ export function ProjectFilter({ projects, selectedProject, onSelect }: ProjectFi
   };
 
   return (
-    <div ref={wrapperRef} className="relative flex items-center gap-2">
-      <Label htmlFor="project-input" className="text-sm font-medium whitespace-nowrap">
-        Project:
-      </Label>
-      <div className="relative flex-1 min-w-[200px]">
+    <div ref={wrapperRef} className="relative w-full">
+      <div className="relative">
         <Input
           id="project-input"
           type="text"
