@@ -1,0 +1,52 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Authentication & Configuration
+model JiraConnection {
+  id                   String    @id @default(cuid())
+  jiraHost             String    // e.g., company.atlassian.net
+  authMethod           String    // api-token, oauth, pat, basic-auth, session-cookie, api-token-user
+  encryptedCredentials String    // Encrypted JSON with method-specific credentials
+  isActive             Boolean   @default(true)
+  lastTestedAt         DateTime?
+  lastTestedBy         String?   // User email from Jira
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+// Historical Sprint Data
+model Sprint {
+  id        String            @id
+  name      String
+  boardId   String
+  startDate DateTime
+  endDate   DateTime
+  state     String            // active, closed, future
+  snapshots SprintSnapshot[]
+}
+
+model SprintSnapshot {
+  id              String   @id @default(cuid())
+  sprintId        String
+  sprint          Sprint   @relation(fields: [sprintId], references: [id])
+  component       String?  // team filter
+  capturedAt      DateTime @default(now())
+  
+  // Metrics
+  totalIssues     Int
+  productIssues   Int      // KPI
+  techDebtIssues  Int
+  techDebtRatio   Float
+  avgCycleTime    Float    // in days
+  medianCycleTime Float
+  velocity        Int      // story points completed
+}
