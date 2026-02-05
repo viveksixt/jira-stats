@@ -186,55 +186,61 @@ export function IssueAgingChart({ data, issues, onIssueClick }: IssueAgingChartP
 
       {/* Chart */}
       <div className="h-[300px]">
-        <ResponsiveContainer width="100%" height="100%">
-          {chartType === 'bar' ? (
-            <BarChart data={filteredData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="range" tickFormatter={(value) => RANGE_LABELS[value] || value} />
-              <YAxis />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar 
-                dataKey="count" 
-                name="Issues"
-                onClick={handleBarClick}
-                style={{ cursor: issues && onIssueClick ? 'pointer' : 'default' }}
-              >
-                {filteredData.map((entry, index) => {
-                  const originalIndex = data.findIndex(d => d.range === entry.range);
-                  return (
-                    <Cell key={`cell-${index}`} fill={COLORS[originalIndex]} />
-                  );
-                })}
-              </Bar>
-            </BarChart>
-          ) : (
-            <PieChart>
-              <Pie
-                data={filteredData.map(item => ({
-                  ...item,
-                  displayRange: RANGE_LABELS[item.range] || item.range
-                }))}
-                dataKey="count"
-                nameKey="displayRange"
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                labelLine={false}
-                onClick={handleBarClick}
-                style={{ cursor: issues && onIssueClick ? 'pointer' : 'default' }}
-              >
-                {filteredData.map((entry, index) => {
-                  const originalIndex = data.findIndex(d => d.range === entry.range);
-                  return (
-                    <Cell key={`cell-${index}`} fill={COLORS[originalIndex]} />
-                  );
-                })}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-            </PieChart>
-          )}
-        </ResponsiveContainer>
+        {totalOpen === 0 ? (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            <p>No open issues found. All issues in this sprint are closed.</p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            {chartType === 'bar' ? (
+              <BarChart data={filteredData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="range" tickFormatter={(value) => RANGE_LABELS[value] || value} />
+                <YAxis />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar 
+                  dataKey="count" 
+                  name="Issues"
+                  onClick={handleBarClick}
+                  style={{ cursor: issues && onIssueClick ? 'pointer' : 'default' }}
+                >
+                  {filteredData.map((entry, index) => {
+                    const originalIndex = data.findIndex(d => d.range === entry.range);
+                    return (
+                      <Cell key={`cell-${index}`} fill={COLORS[originalIndex]} />
+                    );
+                  })}
+                </Bar>
+              </BarChart>
+            ) : (
+              <PieChart>
+                <Pie
+                  data={filteredData.map(item => ({
+                    ...item,
+                    displayRange: RANGE_LABELS[item.range] || item.range
+                  }))}
+                  dataKey="count"
+                  nameKey="displayRange"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  labelLine={false}
+                  onClick={handleBarClick}
+                  style={{ cursor: issues && onIssueClick ? 'pointer' : 'default' }}
+                >
+                  {filteredData.map((entry, index) => {
+                    const originalIndex = data.findIndex(d => d.range === entry.range);
+                    return (
+                      <Cell key={`cell-${index}`} fill={COLORS[originalIndex]} />
+                    );
+                  })}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+              </PieChart>
+            )}
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   );

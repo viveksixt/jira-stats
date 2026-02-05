@@ -13,10 +13,11 @@ interface ClickableMetricCardProps {
   };
   icon?: string;
   issues?: JiraIssue[];
-  onIssuesClick?: (issues: JiraIssue[], title: string) => void;
+  onIssuesClick?: (issues: JiraIssue[], title: string, showAge?: boolean) => void;
   tooltipText?: string;
   showInfoIcon?: boolean;
   onInfoClick?: () => void;
+  showAge?: boolean;
 }
 
 export function ClickableMetricCard({
@@ -29,6 +30,7 @@ export function ClickableMetricCard({
   tooltipText,
   showInfoIcon = false,
   onInfoClick,
+  showAge = false,
 }: ClickableMetricCardProps) {
   const isPositive = change && change.value > 0;
   const isNegative = change && change.value < 0;
@@ -36,7 +38,7 @@ export function ClickableMetricCard({
 
   const handleClick = () => {
     if (isClickable) {
-      onIssuesClick(issues, title);
+      onIssuesClick(issues, title, showAge);
     }
   };
 

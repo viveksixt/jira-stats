@@ -561,6 +561,7 @@ export default function DashboardPage() {
                   setSelectedMetricType('cycleTime');
                   setMetricInfoOpen(true);
                 }}
+                showAge={true}
               />
               <ClickableMetricCard
                 title="Velocity"
@@ -588,7 +589,7 @@ export default function DashboardPage() {
                   <CardTitle>Cycle Time Trend</CardTitle>
                   <button 
                     className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
-                    onClick={() => handleMetricClick(issues?.cycleTime || [], 'Cycle Time - All Issues')}
+                    onClick={() => handleMetricClick(issues?.cycleTime || [], 'Cycle Time - All Issues', true)}
                   >
                     View All
                   </button>
@@ -599,7 +600,7 @@ export default function DashboardPage() {
                       { sprint: selectedSprint?.name || 'Current', cycleTime: metrics.cycleTime.average },
                     ]}
                     issues={issues?.all}
-                    onIssueClick={(issues) => handleMetricClick(issues, 'Cycle Time Details')}
+                    onIssueClick={(issues) => handleMetricClick(issues, 'Cycle Time Details', true)}
                   />
                 </CardContent>
               </Card>
