@@ -11,6 +11,7 @@ import { TechDebtSettings } from '@/components/dashboard/TechDebtSettings';
 import { AssigneeStoryPointsChart } from '@/components/dashboard/AssigneeStoryPointsChart';
 import { BugsVsStoriesChart } from '@/components/dashboard/BugsVsStoriesChart';
 import { CreatedResolvedTrendChart } from '@/components/dashboard/CreatedResolvedTrendChart';
+import { ProductionBugsTrendChart } from '@/components/dashboard/ProductionBugsTrendChart';
 import { WorkloadDistributionChart } from '@/components/dashboard/WorkloadDistributionChart';
 import { IssueAgingChart } from '@/components/dashboard/IssueAgingChart';
 import { FilterPanel } from '@/components/dashboard/FilterPanel';
@@ -419,9 +420,12 @@ export default function DashboardPage() {
                 ignoreIssueKeys={ignoreIssueKeys}
                 onIgnoreIssueKeysChange={handleIgnoreIssueKeysChange}
               />
-              <span className="text-sm text-green-600 flex items-center gap-1">
-                ✓ Connected
-              </span>
+              <div title="Connected to Jira" className="relative group">
+                <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
+                <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-foreground text-background text-xs px-2 py-1 rounded whitespace-nowrap">
+                  Connected to Jira
+                </div>
+              </div>
               <button 
                 onClick={() => router.push('/settings')}
                 title="User Settings"
@@ -612,6 +616,26 @@ export default function DashboardPage() {
                       data={chartData.createdResolvedTrend || []} 
                       issues={issues?.all}
                       onIssueClick={(issues) => handleMetricClick(issues, 'Issues for Selected Date')}
+                    />
+                  </CardContent>
+                </Card>
+
+                {/* Production Bugs Trend */}
+                <Card className="mb-6">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle>Production Bugs Trend</CardTitle>
+                    <button 
+                      className="text-sm text-blue-600 hover:underline cursor-pointer"
+                      onClick={() => handleMetricClick(issues?.productionBugs || [], 'Production Bugs - All Issues')}
+                    >
+                      View All
+                    </button>
+                  </CardHeader>
+                  <CardContent>
+                    <ProductionBugsTrendChart 
+                      data={chartData.productionBugsTrend || []} 
+                      issues={issues?.productionBugs}
+                      onIssueClick={(issues) => handleMetricClick(issues, 'Production Bugs for Selected Date')}
                     />
                   </CardContent>
                 </Card>

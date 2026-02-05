@@ -71,3 +71,56 @@ export function calculateCycleTimeMetrics(issues: JiraIssue[]): CycleTimeMetrics
 
   return calculateStats(cycleTimes);
 }
+
+// Cycle time trend (week-on-week)
+export interface CycleTimeTrendDataPoint {
+  week: string;
+  average: number;
+  median: number;
+  issueCount: number;
+}
+
+export function calculateCycleTimeTrend(issues: JiraIssue[]): CycleTimeTrendDataPoint[] {
+  const trendMap = new Map<string, { cycleTimes: number[]; issueCount: number }>();
+
+  const getWeekKey = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    const weekStart = new Date(date.setDate(diff));
+    return weekStart.toISOString().split('T')[0];
+  };
+
+  // Group issues by the week they were completed
+  issues.forEach(issue => {
+    const cycleTime = calculateIssueCycleTime(issue);
+    if (cycleTime !== null) {
+      const endTime = findStatusChange(issue, 'Done') || 
+                      findStatusChange(issue, 'Closed') ||
+                      findStatusChange(issue, 'Resolved');
+      
+      if (endTime) {
+        const weekKey = getWeekKey(endTime.toISOString());
+        if (!trendMap.has(weekKey)) {
+          trendMap.set(weekKey, { cycleTimes: [], issueCount: 0 });
+        }
+        const data = trendMap.get(weekKey)!;
+        data.cycleTimes.push(cycleTime);
+        data.issueCount++;
+      }
+    }
+  });
+
+  // Convert to trend data points
+  const trendData = Array.from(trendMap.entries()).map(([week, data]) => {
+    const stats = calculateStats(data.cycleTimes);
+    return {
+      week,
+      average: stats.average,
+      median: stats.median,
+      issueCount: data.issueCount,
+    };
+  });
+
+  return trendData.sort((a, b) => a.week.localeCompare(b.week));
+}

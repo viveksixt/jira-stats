@@ -39,6 +39,12 @@ const DialogTrigger = ({ asChild, children, open, onOpenChange }: any) => {
 };
 
 const DialogContent = ({ className = '', children, open, onOpenChange }: DialogContentProps & { open?: boolean; onOpenChange?: (open: boolean) => void }) => {
+  const [position, setPosition] = React.useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [dragOffset, setDragOffset] = React.useState({ x: 0, y: 0 });
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const headerRef = React.useRef<HTMLDivElement>(null);
+
   // Add Escape key handler
   React.useEffect(() => {
     if (!open) return;
@@ -53,6 +59,41 @@ const DialogContent = ({ className = '', children, open, onOpenChange }: DialogC
     return () => window.removeEventListener('keydown', handleEscape);
   }, [open, onOpenChange]);
 
+  // Handle drag start
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!headerRef.current?.contains(e.target as Node)) return;
+    
+    setIsDragging(true);
+    setDragOffset({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    });
+  };
+
+  // Handle drag
+  React.useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setPosition({
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y,
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragOffset]);
+
   if (!open) return null;
 
   return (
@@ -64,8 +105,18 @@ const DialogContent = ({ className = '', children, open, onOpenChange }: DialogC
       />
       
       {/* Dialog */}
-      <div className={`relative bg-background rounded-lg shadow-lg p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto ${className}`}>
-        {children}
+      <div 
+        ref={dialogRef}
+        className={`relative bg-background rounded-lg shadow-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto z-50 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} ${className}`}
+        style={{
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+        }}
+        onMouseDown={handleMouseDown}
+      >
+        <div ref={headerRef} className="cursor-grab active:cursor-grabbing mb-2">
+          {children}
+        </div>
       </div>
     </div>
   );

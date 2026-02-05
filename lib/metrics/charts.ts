@@ -182,9 +182,9 @@ export function calculateWorkloadDistribution(issues: JiraIssue[]): WorkloadData
     }
   });
 
-  // Remove assignees who only have TODO items (which should be 0 now after filtering)
+  // Remove assignees who only have TODO items (which should be 0 now after filtering) and filter out Unassigned
   const result = Array.from(workloadMap.values())
-    .filter(data => data.total > 0)
+    .filter(data => data.total > 0 && data.assignee !== 'Unassigned')
     .sort((a, b) => b.total - a.total);
 
   return result;
@@ -207,9 +207,11 @@ export function calculateIssueAging(issues: JiraIssue[]): AgingData[] {
     { label: '> 2 months', maxDays: Infinity, count: 0, issues: [] as string[] },
   ];
 
-  const openIssues = issues.filter(
-    issue => issue.fields.status.statusCategory.key !== 'done'
-  );
+  const openIssues = issues.filter(issue => {
+    const statusCategory = issue.fields.status?.statusCategory?.key;
+    // Consider open if statusCategory is missing or not 'done'
+    return !statusCategory || statusCategory !== 'done';
+  });
 
   openIssues.forEach(issue => {
     const createdDate = new Date(issue.fields.created);
@@ -224,10 +226,10 @@ export function calculateIssueAging(issues: JiraIssue[]): AgingData[] {
     }
   });
 
-  return ranges.map(r => ({ range: r.label, count: r.count, issues: r.issues }));
+  return ranges;
 }
 
-// Get issues by type (for clickable charts)
+// Issue type breakdown by category
 export interface IssuesByType {
   bugs: JiraIssue[];
   stories: JiraIssue[];
@@ -257,4 +259,124 @@ export function getIssuesByType(issues: JiraIssue[]): IssuesByType {
   });
 
   return result;
+}
+
+// Production Bugs Trend
+export interface ProductionBugsTrendDataPoint {
+  date: string;
+  created: number;
+  resolved: number;
+}
+
+export function calculateProductionBugsTrend(
+  issues: JiraIssue[],
+  groupBy: 'day' | 'week' = 'day'
+): ProductionBugsTrendDataPoint[] {
+  const trendMap = new Map<string, ProductionBugsTrendDataPoint>();
+
+  const getDateKey = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    if (groupBy === 'week') {
+      const day = date.getDay();
+      const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+      date.setDate(diff);
+    }
+    return date.toISOString().split('T')[0];
+  };
+
+  const initPoint = (date: string): ProductionBugsTrendDataPoint => ({
+    date,
+    created: 0,
+    resolved: 0,
+  });
+
+  issues.forEach(issue => {
+    const createdDate = getDateKey(issue.fields.created);
+    
+    // Track created
+    if (!trendMap.has(createdDate)) {
+      trendMap.set(createdDate, initPoint(createdDate));
+    }
+    const createdPoint = trendMap.get(createdDate)!;
+    createdPoint.created++;
+
+    // Track resolved
+    if (issue.fields.resolutiondate) {
+      const resolvedDate = getDateKey(issue.fields.resolutiondate);
+      if (!trendMap.has(resolvedDate)) {
+        trendMap.set(resolvedDate, initPoint(resolvedDate));
+      }
+      const resolvedPoint = trendMap.get(resolvedDate)!;
+      resolvedPoint.resolved++;
+    }
+  });
+
+  return Array.from(trendMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Tech Debt Ratio Trend (Week-on-Week)
+export interface TechDebtTrendDataPoint {
+  week: string;
+  techCount: number;
+  productCount: number;
+  ratio: number;
+}
+
+export function calculateTechDebtTrend(
+  issues: JiraIssue[],
+  techLabels?: string[]
+): TechDebtTrendDataPoint[] {
+  const trendMap = new Map<string, { tech: number; product: number }>();
+
+  const getWeekKey = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    const weekStart = new Date(date.setDate(diff));
+    return weekStart.toISOString().split('T')[0];
+  };
+
+  // Helper to check if issue is tech
+  const isTech = (issue: JiraIssue): boolean => {
+    if (!techLabels || techLabels.length === 0) {
+      // Default tech labels
+      const defaultTechLabels = ['tech', 'tech-debt', 'tech_debt', 'technical'];
+      return issue.fields.labels?.some(label => 
+        defaultTechLabels.some(tech => label.toLowerCase().includes(tech.toLowerCase()))
+      ) || false;
+    }
+    
+    return issue.fields.labels?.some(label => 
+      techLabels.some(tech => label.toLowerCase().includes(tech.toLowerCase()))
+    ) || false;
+  };
+
+  // Group issues by week created
+  issues.forEach(issue => {
+    const weekKey = getWeekKey(issue.fields.created);
+    if (!trendMap.has(weekKey)) {
+      trendMap.set(weekKey, { tech: 0, product: 0 });
+    }
+    
+    const data = trendMap.get(weekKey)!;
+    if (isTech(issue)) {
+      data.tech++;
+    } else {
+      data.product++;
+    }
+  });
+
+  // Convert to trend data points with ratio
+  const trendData = Array.from(trendMap.entries()).map(([week, data]) => {
+    const total = data.tech + data.product;
+    const ratio = total > 0 ? Math.round((data.tech / total) * 100 * 10) / 10 : 0;
+    return {
+      week,
+      techCount: data.tech,
+      productCount: data.product,
+      ratio,
+    };
+  });
+
+  return trendData.sort((a, b) => a.week.localeCompare(b.week));
 }

@@ -9,6 +9,9 @@ import {
   calculateWorkloadDistribution,
   calculateIssueAging,
   getIssuesByType,
+  calculateProductionBugsTrend,
+  calculateCycleTimeTrend,
+  calculateTechDebtTrend,
 } from '@/lib/metrics';
 
 // GET - Calculate metrics for a sprint
@@ -91,6 +94,17 @@ export async function GET(request: NextRequest) {
       techLabels
     );
 
+    // Filter production bugs from existing sprint issues
+    // Production bugs are bugs from the selected sprint/board with production environment indicator
+    const productionBugs = issues.filter(issue => {
+      const isBug = issue.fields.issuetype?.name?.toLowerCase().includes('bug') || false;
+      const isProduction = 
+        issue.fields.labels?.some((label: string) => 
+          label.toLowerCase().includes('production')
+        ) || false;
+      return isBug && isProduction;
+    });
+
     // Calculate chart data
     const chartData = {
       storyPointsByAssignee: calculateStoryPointsByAssignee(issues),
@@ -98,6 +112,9 @@ export async function GET(request: NextRequest) {
       createdResolvedTrend: calculateCreatedResolvedTrend(issues, 'day'),
       workloadDistribution: calculateWorkloadDistribution(issues),
       issueAging: calculateIssueAging(issues),
+      productionBugsTrend: calculateProductionBugsTrend(productionBugs, 'day'),
+      cycleTimeTrend: calculateCycleTimeTrend(issues),
+      techDebtTrend: calculateTechDebtTrend(issues, techLabels),
     };
 
     // Get issues for metric tiles
@@ -115,6 +132,7 @@ export async function GET(request: NextRequest) {
         techDebt: techDebtIssues,
         cycleTime: cycleTimeIssues,
         all: issues,
+        productionBugs,
       },
       issuesByType,
     });

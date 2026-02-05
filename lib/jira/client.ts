@@ -30,32 +30,48 @@ export class JiraClient {
     return response.json();
   }
 
-  // Search issues with JQL
+  // Search issues with JQL (with token-based pagination for new /search/jql endpoint)
   async searchIssues(jql: string, fields?: string[], expand?: string[]): Promise<JiraIssue[]> {
     const defaultFields = ['summary', 'status', 'issuetype', 'labels', 'components', 'assignee', 'created', 'updated', 'customfield_10039', 'customfield_10016', 'resolutiondate'];
     
-    const body: any = {
-      jql,
-      maxResults: 1000,
-      fields: fields && fields.length > 0 ? fields : defaultFields,
-    };
+    let allIssues: JiraIssue[] = [];
+    let nextPageToken: string | undefined = undefined;
+    let isLast = false;
+    const maxResults = 100; // Fetch in batches of 100
 
-    if (expand && expand.length > 0) {
-      body.expand = expand.join(',');
-    }
+    do {
+      const body: any = {
+        jql,
+        maxResults,
+        fields: fields && fields.length > 0 ? fields : defaultFields,
+      };
 
-    const result = await this.request<{ issues: JiraIssue[] }>(
-      '/rest/api/3/search/jql',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
+      // Add nextPageToken for subsequent pages
+      if (nextPageToken) {
+        body.nextPageToken = nextPageToken;
       }
-    );
 
-    return result.issues;
+      if (expand && expand.length > 0) {
+        body.expand = expand.join(',');
+      }
+
+      const result = await this.request<{ issues: JiraIssue[]; isLast: boolean; nextPageToken?: string }>(
+        '/rest/api/3/search/jql',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        }
+      );
+
+      allIssues = allIssues.concat(result.issues || []);
+      isLast = result.isLast;
+      nextPageToken = result.nextPageToken;
+    } while (!isLast && nextPageToken);
+
+    return allIssues;
   }
 
   // Get boards
@@ -112,22 +128,34 @@ export class JiraClient {
     return allSprints;
   }
 
-  // Get issues in a sprint
+  // Get issues in a sprint (with pagination)
   async getSprintIssues(sprintId: number, expand?: string[]): Promise<JiraIssue[]> {
-    const params = new URLSearchParams({
-      maxResults: '1000',
-      fields: 'summary,status,issuetype,labels,components,assignee,created,updated,customfield_10039,customfield_10016,resolutiondate',
-    });
+    let allIssues: JiraIssue[] = [];
+    let startAt = 0;
+    const maxResults = 100;
+    let total = 0;
 
-    if (expand && expand.length > 0) {
-      params.append('expand', expand.join(','));
-    }
+    do {
+      const params = new URLSearchParams({
+        startAt: startAt.toString(),
+        maxResults: maxResults.toString(),
+        fields: 'summary,status,issuetype,labels,components,assignee,created,updated,customfield_10039,customfield_10016,resolutiondate',
+      });
 
-    const result = await this.request<{ issues: JiraIssue[] }>(
-      `/rest/agile/1.0/sprint/${sprintId}/issue?${params.toString()}`
-    );
+      if (expand && expand.length > 0) {
+        params.append('expand', expand.join(','));
+      }
 
-    return result.issues;
+      const result = await this.request<{ issues: JiraIssue[]; total: number; startAt: number; maxResults: number }>(
+        `/rest/agile/1.0/sprint/${sprintId}/issue?${params.toString()}`
+      );
+
+      allIssues = allIssues.concat(result.issues);
+      total = result.total;
+      startAt += maxResults;
+    } while (startAt < total);
+
+    return allIssues;
   }
 
   // Get issue with changelog
