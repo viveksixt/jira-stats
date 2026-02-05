@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
     const techLabels = techLabelsParam ? techLabelsParam.split(',').map(l => l.trim()) : undefined;
     const ignoreKeysParam = searchParams.get('ignoreKeys');
     const ignoreKeys = ignoreKeysParam ? ignoreKeysParam.split(',').map(k => k.trim()) : [];
+    const techEpicKeysParam = searchParams.get('techEpicKeys');
+    const techEpicKeys = techEpicKeysParam ? techEpicKeysParam.split(',').map(k => k.trim()) : [];
 
     if (!sprintId) {
       return NextResponse.json(
@@ -90,7 +92,8 @@ export async function GET(request: NextRequest) {
       sprint.name,
       issues,
       component || undefined,
-      techLabels
+      techLabels,
+      techEpicKeys
     );
 
     // Filter bugs from existing sprint issues
@@ -106,13 +109,13 @@ export async function GET(request: NextRequest) {
       issueAging: calculateIssueAging(issues),
       bugsTrend: calculateProductionBugsTrend(bugs, 'week'),
       cycleTimeTrend: calculateCycleTimeTrend(issues),
-      techDebtTrend: calculateTechDebtTrend(issues, techLabels),
+      techDebtTrend: calculateTechDebtTrend(issues, techLabels, techEpicKeys),
     };
 
     // Get issues for metric tiles
     const { isTechIssue } = await import('@/lib/metrics/kpi');
-    const productIssues = issues.filter(issue => !isTechIssue(issue, techLabels));
-    const techDebtIssues = issues.filter(issue => isTechIssue(issue, techLabels));
+    const productIssues = issues.filter(issue => !isTechIssue(issue, techLabels, techEpicKeys));
+    const techDebtIssues = issues.filter(issue => isTechIssue(issue, techLabels, techEpicKeys));
     const cycleTimeIssues = issues.filter(issue => issue.fields.status?.name?.toLowerCase() === 'done');
     const issuesByType = getIssuesByType(issues);
 

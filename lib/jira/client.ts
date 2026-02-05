@@ -32,7 +32,7 @@ export class JiraClient {
 
   // Search issues with JQL (with token-based pagination for new /search/jql endpoint)
   async searchIssues(jql: string, fields?: string[], expand?: string[]): Promise<JiraIssue[]> {
-    const defaultFields = ['summary', 'status', 'issuetype', 'labels', 'components', 'assignee', 'created', 'updated', 'customfield_10039', 'customfield_10016', 'resolutiondate'];
+    const defaultFields = ['summary', 'status', 'issuetype', 'labels', 'components', 'assignee', 'created', 'updated', 'customfield_10039', 'customfield_10016', 'resolutiondate', 'parent'];
     
     let allIssues: JiraIssue[] = [];
     let nextPageToken: string | undefined = undefined;
@@ -139,7 +139,7 @@ export class JiraClient {
       const params = new URLSearchParams({
         startAt: startAt.toString(),
         maxResults: maxResults.toString(),
-        fields: 'summary,status,issuetype,labels,components,assignee,created,updated,customfield_10039,customfield_10016,resolutiondate',
+        fields: 'summary,status,issuetype,labels,components,assignee,created,updated,customfield_10039,customfield_10016,resolutiondate,parent',
       });
 
       if (expand && expand.length > 0) {
@@ -148,6 +148,34 @@ export class JiraClient {
 
       const result = await this.request<{ issues: JiraIssue[]; total: number; startAt: number; maxResults: number }>(
         `/rest/agile/1.0/sprint/${sprintId}/issue?${params.toString()}`
+      );
+
+      allIssues = allIssues.concat(result.issues);
+      total = result.total;
+      startAt += maxResults;
+    } while (startAt < total);
+
+    return allIssues;
+  }
+
+  // Get all issues from a board (with pagination)
+  async getBoardIssues(boardId: number, fields?: string[]): Promise<JiraIssue[]> {
+    let allIssues: JiraIssue[] = [];
+    let startAt = 0;
+    const maxResults = 100;
+    let total = 0;
+
+    const defaultFields = ['summary', 'status', 'issuetype', 'parent'];
+
+    do {
+      const params = new URLSearchParams({
+        startAt: startAt.toString(),
+        maxResults: maxResults.toString(),
+        fields: fields && fields.length > 0 ? fields.join(',') : defaultFields.join(','),
+      });
+
+      const result = await this.request<{ issues: JiraIssue[]; total: number; startAt: number; maxResults: number }>(
+        `/rest/agile/1.0/board/${boardId}/issue?${params.toString()}`
       );
 
       allIssues = allIssues.concat(result.issues);

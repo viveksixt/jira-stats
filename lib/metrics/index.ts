@@ -10,10 +10,11 @@ export function calculateSprintMetrics(
   sprintName: string,
   issues: JiraIssue[],
   component?: string,
-  techLabels?: string[]
+  techLabels?: string[],
+  techEpicKeys: string[] = []
 ): SprintMetrics {
-  const kpi = calculateKPI(issues, techLabels);
-  const techDebtRatio = calculateTechDebtRatio(issues, techLabels);
+  const kpi = calculateKPI(issues, techLabels, techEpicKeys);
+  const techDebtRatio = calculateTechDebtRatio(issues, techLabels, techEpicKeys);
   const cycleTime = calculateCycleTimeMetrics(issues);
   const velocity = calculateVelocity(issues);
 

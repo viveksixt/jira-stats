@@ -27,6 +27,13 @@ export interface JiraIssue {
     created: string;
     updated: string;
     customfield_10016?: number; // Story points (common field)
+    parent?: {
+      key: string;
+      fields?: {
+        summary?: string;
+        issuetype?: { name: string };
+      };
+    } | null;
     [key: string]: any;
   };
   changelog?: {

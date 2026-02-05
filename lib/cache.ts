@@ -76,6 +76,7 @@ export const cacheKeys = {
   projects: 'jira-stats-projects',
   boardsByProject: (projectKey: string) => `jira-stats-boards-${projectKey}`,
   jqlResults: (queryHash: string) => `jira-stats-jql-${queryHash}`,
+  epics: (projectKey: string) => `jira-stats-epics-${projectKey}`,
 };
 
 // Preference key builders (no TTL, persisted indefinitely)
@@ -86,4 +87,5 @@ export const preferenceKeys = {
   board: 'jira-stats-pref-board',
   sprint: 'jira-stats-pref-sprint',
   jqlQuery: 'jira-stats-pref-jql-query',
+  techEpicKeys: 'jira-stats-pref-tech-epic-keys',
 };

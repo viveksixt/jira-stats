@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { jql, techLabels, ignoreKeys } = body;
+    const { jql, techLabels, ignoreKeys, techEpicKeys = [] } = body;
 
     if (!jql) {
       return NextResponse.json(
@@ -75,7 +75,8 @@ export async function POST(request: NextRequest) {
       'JQL Query Results',
       issues,
       undefined,
-      techLabels
+      techLabels,
+      techEpicKeys
     );
 
     // Filter bugs from JQL query results
@@ -91,13 +92,13 @@ export async function POST(request: NextRequest) {
       issueAging: calculateIssueAging(issues),
       bugsTrend: calculateProductionBugsTrend(bugs, 'week'),
       cycleTimeTrend: calculateCycleTimeTrend(issues),
-      techDebtTrend: calculateTechDebtTrend(issues, techLabels),
+      techDebtTrend: calculateTechDebtTrend(issues, techLabels, techEpicKeys),
     };
 
     // Get issues for metric tiles
     const { isTechIssue } = await import('@/lib/metrics/kpi');
-    const productIssues = issues.filter(issue => !isTechIssue(issue, techLabels));
-    const techDebtIssues = issues.filter(issue => isTechIssue(issue, techLabels));
+    const productIssues = issues.filter(issue => !isTechIssue(issue, techLabels, techEpicKeys));
+    const techDebtIssues = issues.filter(issue => isTechIssue(issue, techLabels, techEpicKeys));
     const cycleTimeIssues = issues.filter(issue => issue.fields.status?.name?.toLowerCase() === 'done');
     const issuesByType = getIssuesByType(issues);
 

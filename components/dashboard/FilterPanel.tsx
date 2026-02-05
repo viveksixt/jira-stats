@@ -1,10 +1,12 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { QueryModeToggle } from './QueryModeToggle';
 import { ProjectFilter } from './ProjectFilter';
 import { SprintSelector } from './SprintSelector';
 import { BoardSelector } from './BoardSelector';
+import { TechEpicsSelector } from './TechEpicsSelector';
 import { JQLQueryPanel } from './JQLQueryPanel';
 import type { JiraBoard, JiraProject, JiraSprint, QueryMode } from '@/types/jira';
 
@@ -26,6 +28,13 @@ interface FilterPanelProps {
   selectedSprint: JiraSprint | null;
   onSprintSelect: (sprint: JiraSprint) => void;
 
+  // Tech Epics
+  techEpicKeys: string[];
+  onTechEpicKeysChange: (keys: string[]) => void;
+
+  // Clear Filters
+  onClearFilters: () => void;
+
   // JQL Mode
   onJQLExecute: (jql: string) => Promise<void>;
   jqlLoading?: boolean;
@@ -43,6 +52,9 @@ export function FilterPanel({
   sprints,
   selectedSprint,
   onSprintSelect,
+  techEpicKeys,
+  onTechEpicKeysChange,
+  onClearFilters,
   onJQLExecute,
   jqlLoading = false,
 }: FilterPanelProps) {
@@ -58,7 +70,7 @@ export function FilterPanel({
           {/* Board Mode Filters */}
           {queryMode === 'board' && (
             <div className="space-y-4">
-              {/* Row 2: Project + Board + Sprint on same line */}
+              {/* Row 2: Project + Board + Sprint + Tech Epics on same line */}
               <div className="flex flex-wrap items-center gap-4">
                 <ProjectFilter
                   projects={projects}
@@ -78,6 +90,25 @@ export function FilterPanel({
                     selectedSprint={selectedSprint}
                     onSelect={onSprintSelect}
                   />
+                )}
+
+                {selectedBoard && (
+                  <TechEpicsSelector
+                    projectKey={selectedProject?.key || null}
+                    boardId={selectedBoard.id}
+                    selectedEpicKeys={techEpicKeys}
+                    onSelectionChange={onTechEpicKeysChange}
+                  />
+                )}
+
+                {(selectedProject || selectedBoard || selectedSprint || techEpicKeys.length > 0) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onClearFilters}
+                  >
+                    Clear
+                  </Button>
                 )}
               </div>
             </div>

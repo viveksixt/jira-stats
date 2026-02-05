@@ -74,6 +74,21 @@ export default function DashboardPage() {
     }
     return [];
   });
+  const [techEpicKeys, setTechEpicKeys] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(preferenceKeys.techEpicKeys);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    }
+    return [];
+  });
 
   // Metrics
   const [metrics, setMetrics] = useState<any>(null);
@@ -237,6 +252,9 @@ export default function DashboardPage() {
     if (selectedBoard) {
       loadSprints(selectedBoard.id);
       localStorage.setItem(preferenceKeys.board, selectedBoard.id.toString());
+      // Clear tech epic selection when board changes
+      setTechEpicKeys([]);
+      localStorage.removeItem(preferenceKeys.techEpicKeys);
     }
   }, [selectedBoard]);
 
@@ -298,7 +316,8 @@ export default function DashboardPage() {
     try {
       const techLabelsParam = techLabels.join(',');
       const ignoreKeysParam = ignoreIssueKeys.join(',');
-      const res = await fetch(`/api/metrics?sprintId=${sprintId}&techLabels=${encodeURIComponent(techLabelsParam)}&ignoreKeys=${encodeURIComponent(ignoreKeysParam)}`);
+      const techEpicKeysParam = techEpicKeys.join(',');
+      const res = await fetch(`/api/metrics?sprintId=${sprintId}&techLabels=${encodeURIComponent(techLabelsParam)}&ignoreKeys=${encodeURIComponent(ignoreKeysParam)}&techEpicKeys=${encodeURIComponent(techEpicKeysParam)}`);
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || 'Failed to calculate metrics');
@@ -344,6 +363,32 @@ export default function DashboardPage() {
     }
   };
 
+  // Handle tech epic keys change
+  const handleTechEpicKeysChange = (keys: string[]) => {
+    setTechEpicKeys(keys);
+    localStorage.setItem(preferenceKeys.techEpicKeys, JSON.stringify(keys));
+    // Clear cache and reload metrics if we have a selected sprint
+    if (selectedSprint) {
+      cache.remove(cacheKeys.metrics(selectedSprint.id));
+      loadMetrics(selectedSprint.id);
+    }
+  };
+
+  // Handle clear all filters
+  const handleClearFilters = () => {
+    setSelectedProject(null);
+    setSelectedBoard(null);
+    setSelectedSprint(null);
+    setTechEpicKeys([]);
+    setSprints([]);
+    setMetrics(null);
+    // Clear localStorage preferences
+    localStorage.removeItem(preferenceKeys.project);
+    localStorage.removeItem(preferenceKeys.board);
+    localStorage.removeItem(preferenceKeys.sprint);
+    localStorage.removeItem(preferenceKeys.techEpicKeys);
+  };
+
   // Handle JQL query execution
   const handleJQLExecute = async (jql: string) => {
     setJqlLoading(true);
@@ -352,7 +397,7 @@ export default function DashboardPage() {
       const res = await fetch('/api/jql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jql, techLabels, ignoreKeys: ignoreIssueKeys }),
+        body: JSON.stringify({ jql, techLabels, ignoreKeys: ignoreIssueKeys, techEpicKeys }),
       });
 
       if (!res.ok) {
@@ -466,6 +511,9 @@ export default function DashboardPage() {
               setSelectedSprint(sprint);
               setMetrics(null);
             }}
+            techEpicKeys={techEpicKeys}
+            onTechEpicKeysChange={handleTechEpicKeysChange}
+            onClearFilters={handleClearFilters}
             onJQLExecute={handleJQLExecute}
             jqlLoading={jqlLoading}
           />
