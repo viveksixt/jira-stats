@@ -200,11 +200,11 @@ export interface AgingData {
 export function calculateIssueAging(issues: JiraIssue[]): AgingData[] {
   const now = new Date();
   const ranges = [
-    { label: '< 1 week', maxDays: 7, count: 0, issues: [] as string[] },
-    { label: '1-2 weeks', maxDays: 14, count: 0, issues: [] as string[] },
-    { label: '2-4 weeks', maxDays: 28, count: 0, issues: [] as string[] },
-    { label: '1-2 months', maxDays: 60, count: 0, issues: [] as string[] },
-    { label: '> 2 months', maxDays: Infinity, count: 0, issues: [] as string[] },
+    { range: '< 1 week', maxDays: 7, count: 0, issues: [] as string[] },
+    { range: '1-2 weeks', maxDays: 14, count: 0, issues: [] as string[] },
+    { range: '2-4 weeks', maxDays: 28, count: 0, issues: [] as string[] },
+    { range: '1-2 months', maxDays: 60, count: 0, issues: [] as string[] },
+    { range: '> 2 months', maxDays: Infinity, count: 0, issues: [] as string[] },
   ];
 
   const openIssues = issues.filter(issue => {

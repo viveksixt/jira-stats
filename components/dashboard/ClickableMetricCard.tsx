@@ -64,8 +64,6 @@ export function ClickableMetricCard({
               <InfoIcon />
             </button>
           )}
-        </div>
-        <div className="ml-auto">
           {icon && <span className="text-2xl">{icon}</span>}
         </div>
       </CardHeader>

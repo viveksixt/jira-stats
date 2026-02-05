@@ -190,7 +190,7 @@ export function IssueAgingChart({ data, issues, onIssueClick }: IssueAgingChartP
           {chartType === 'bar' ? (
             <BarChart data={filteredData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="range" />
+              <XAxis dataKey="range" tickFormatter={(value) => RANGE_LABELS[value] || value} />
               <YAxis />
               <Tooltip content={<CustomTooltip />} />
               <Bar 
@@ -219,7 +219,7 @@ export function IssueAgingChart({ data, issues, onIssueClick }: IssueAgingChartP
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                label={({ displayRange, percent }) => `${displayRange}: ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                 labelLine={false}
                 onClick={handleBarClick}
                 style={{ cursor: issues && onIssueClick ? 'pointer' : 'default' }}

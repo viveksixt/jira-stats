@@ -539,7 +539,7 @@ export default function DashboardPage() {
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle>Cycle Time Trend</CardTitle>
                   <button 
-                    className="text-sm text-blue-600 hover:underline cursor-pointer"
+                    className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
                     onClick={() => handleMetricClick(issues?.cycleTime || [], 'Cycle Time - All Issues')}
                   >
                     View All
@@ -560,7 +560,7 @@ export default function DashboardPage() {
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle>Tech Debt Ratio Trend</CardTitle>
                   <button 
-                    className="text-sm text-blue-600 hover:underline cursor-pointer"
+                    className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
                     onClick={() => handleMetricClick([...(issues?.techDebt || []), ...(issues?.product || [])], 'Tech Debt Ratio - All Issues')}
                   >
                     View All
@@ -589,7 +589,7 @@ export default function DashboardPage() {
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Story Points by Assignee</CardTitle>
                       <button 
-                        className="text-sm text-blue-600 hover:underline cursor-pointer"
+                        className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
                         onClick={() => handleMetricClick(issues?.all || [], 'Story Points by Assignee - All Issues')}
                       >
                         View All
@@ -608,7 +608,7 @@ export default function DashboardPage() {
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Bugs vs Stories vs Tasks</CardTitle>
                       <button 
-                        className="text-sm text-blue-600 hover:underline cursor-pointer"
+                        className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
                         onClick={() => handleMetricClick(issues?.all || [], 'Bugs vs Stories - All Issues')}
                       >
                         View All
@@ -629,7 +629,7 @@ export default function DashboardPage() {
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle>Bugs Trend</CardTitle>
                     <button 
-                      className="text-sm text-blue-600 hover:underline cursor-pointer"
+                      className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
                       onClick={() => handleMetricClick(issues?.bugs || [], 'Bugs - All Issues')}
                     >
                       View All
@@ -650,7 +650,7 @@ export default function DashboardPage() {
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Workload Distribution</CardTitle>
                       <button 
-                        className="text-sm text-blue-600 hover:underline cursor-pointer"
+                        className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
                         onClick={() => handleMetricClick(issues?.all || [], 'Workload Distribution - All Issues')}
                       >
                         View All
@@ -669,7 +669,7 @@ export default function DashboardPage() {
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Issue Aging</CardTitle>
                       <button 
-                        className="text-sm text-blue-600 hover:underline cursor-pointer"
+                        className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
                         onClick={() => handleMetricClick(
                           (issues?.all || []).filter((issue: JiraIssue) => 
                             issue.fields.status?.statusCategory?.key !== 'done'
