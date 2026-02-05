@@ -62,7 +62,7 @@ export function FilterIcon({
         className="relative p-2 hover:bg-accent rounded-md transition-colors"
         title="Open filters"
       >
-        🔍
+        ☰
         {hasActiveFilters && (
           <span className="absolute -top-0.5 -right-0.5 h-4 w-4 bg-primary text-primary-foreground rounded-full text-xs flex items-center justify-center font-medium">
             {(selectedProject ? 1 : 0) + (selectedBoard ? 1 : 0) + selectedSprints.length + (techEpicKeys.length > 0 ? 1 : 0)}

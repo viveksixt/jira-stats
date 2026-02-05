@@ -797,14 +797,57 @@ export default function DashboardPage() {
         )}
 
         {!metrics && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">
-              {queryMode === 'board' && selectedSprints.length > 0
-                ? 'Loading metrics...'
-                : queryMode === 'jql'
-                  ? 'Enter a JQL query to get started'
-                  : 'Select a board and sprint to view metrics'}
-            </p>
+          <div className="text-center py-16">
+            <div className="space-y-6 max-w-2xl mx-auto">
+              {queryMode === 'board' && selectedProject && selectedBoard && selectedSprints.length > 0 ? (
+                <div>
+                  <div className="text-4xl mb-4">⏳</div>
+                  <p className="text-lg font-semibold">Loading metrics...</p>
+                  <p className="text-muted-foreground mt-2">Please wait while we fetch your sprint data</p>
+                </div>
+              ) : queryMode === 'jql' ? (
+                <div>
+                  <div className="text-4xl mb-4">📝</div>
+                  <p className="text-lg font-semibold">Enter a JQL query to get started</p>
+                  <p className="text-muted-foreground mt-2">Click the filter icon to write a custom Jira Query Language query</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-4xl mb-4">🚀</div>
+                  <p className="text-lg font-semibold">Get started by applying filters</p>
+                  <div className="mt-6 space-y-4 text-left bg-muted/50 p-6 rounded-lg">
+                    <p className="text-sm font-semibold text-foreground mb-3">Follow these steps to view your metrics:</p>
+                    <ol className="space-y-3 text-sm text-muted-foreground">
+                      <li className="flex gap-3">
+                        <span className="font-semibold text-primary min-w-6">1.</span>
+                        <span>Click the <strong className="font-semibold text-foreground">filter icon (☰)</strong> in the top-right to open filters</span>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="font-semibold text-primary min-w-6">2.</span>
+                        <span>Select a <strong className="font-semibold text-foreground">Project</strong> from the dropdown</span>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="font-semibold text-primary min-w-6">3.</span>
+                        <span>Select a <strong className="font-semibold text-foreground">Board</strong> from your project</span>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="font-semibold text-primary min-w-6">4.</span>
+                        <span>Select one or more <strong className="font-semibold text-foreground">Sprints</strong> to analyze</span>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="font-semibold text-primary min-w-6">5.</span>
+                        <span><strong className="font-semibold text-foreground">Optional:</strong> Configure Tech Topics by selecting <strong>Tech Epics</strong> or custom labels in Settings (⚙️)</span>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="font-semibold text-primary min-w-6">6.</span>
+                        <span>Click <strong className="font-semibold text-foreground">Apply Filters</strong> to load your metrics</span>
+                      </li>
+                    </ol>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-4">💡 Tip: Save your favorite filter combinations as presets for quick access</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
