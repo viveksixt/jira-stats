@@ -48,6 +48,12 @@ export async function POST(request: NextRequest) {
       return status !== 'cancelled' && status !== 'canceled';
     });
 
+    // Filter out Task issue type
+    issues = issues.filter(issue => {
+      const issueType = issue.fields.issuetype?.name?.toLowerCase() || '';
+      return !issueType.includes('task') && issueType !== 'sub-task';
+    });
+
     // Filter out ignored issue keys
     if (ignoreKeys && ignoreKeys.length > 0) {
       issues = issues.filter(issue => !ignoreKeys.includes(issue.key));

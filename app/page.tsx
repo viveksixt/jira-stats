@@ -84,6 +84,7 @@ export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalIssues, setModalIssues] = useState<JiraIssue[]>([]);
+  const [modalShowAge, setModalShowAge] = useState(false);
 
   // Initialize
   useEffect(() => {
@@ -339,9 +340,10 @@ export default function DashboardPage() {
   };
 
   // Handle metric card click
-  const handleMetricClick = (issues: JiraIssue[], title: string) => {
+  const handleMetricClick = (issues: JiraIssue[], title: string, showAge: boolean = false) => {
     setModalIssues(issues);
     setModalTitle(title);
+    setModalShowAge(showAge);
     setModalOpen(true);
   }
 
@@ -377,7 +379,6 @@ export default function DashboardPage() {
               <span className="text-sm text-green-600 flex items-center gap-1">
                 ✓ Connected
               </span>
-              <ClearAllToasts />
               <Button variant="outline" onClick={() => router.push('/settings')}>
                 Settings
               </Button>
@@ -458,17 +459,20 @@ export default function DashboardPage() {
             {/* Charts */}
             <div className="grid gap-6 md:grid-cols-2 mb-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle>Cycle Time Trend</CardTitle>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleMetricClick(issues?.cycleTime || [], 'Cycle Time - All Issues')}
+                  >
+                    View All
+                  </Button>
                 </CardHeader>
                 <CardContent>
                   <CycleTimeChart
                     data={[
-                      { sprint: 'Sp41', cycleTime: 5.2 },
-                      { sprint: 'Sp42', cycleTime: 4.8 },
-                      { sprint: 'Sp43', cycleTime: 5.5 },
-                      { sprint: 'Sp44', cycleTime: 4.2 },
-                      { sprint: 'Current', cycleTime: metrics.cycleTime.average },
+                      { sprint: selectedSprint?.name || 'Current', cycleTime: metrics.cycleTime.average },
                     ]}
                     issues={issues?.all}
                     onIssueClick={(issues) => handleMetricClick(issues, 'Cycle Time Details')}
@@ -477,15 +481,20 @@ export default function DashboardPage() {
               </Card>
 
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle>Tech Debt Ratio Trend</CardTitle>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleMetricClick([...(issues?.techDebt || []), ...(issues?.product || [])], 'Tech Debt Ratio - All Issues')}
+                  >
+                    View All
+                  </Button>
                 </CardHeader>
                 <CardContent>
                   <TechDebtChart
                     data={[
-                      { sprint: 'Sp43', techDebt: 12, product: 38 },
-                      { sprint: 'Sp44', techDebt: 10, product: 40 },
-                      { sprint: 'Current', techDebt: metrics.techDebtIssues, product: metrics.productIssues },
+                      { sprint: selectedSprint?.name || 'Current', techDebt: metrics.techDebtIssues, product: metrics.productIssues },
                     ]}
                     techIssues={issues?.techDebt}
                     productIssues={issues?.product}
@@ -502,17 +511,35 @@ export default function DashboardPage() {
                 {/* Story Points by Assignee & Issue Type Breakdown */}
                 <div className="grid gap-6 md:grid-cols-2 mb-6">
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Story Points by Assignee</CardTitle>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleMetricClick(issues?.all || [], 'Story Points by Assignee - All Issues')}
+                      >
+                        View All
+                      </Button>
                     </CardHeader>
                     <CardContent>
-                      <AssigneeStoryPointsChart data={chartData.storyPointsByAssignee || []} />
+                      <AssigneeStoryPointsChart 
+                        data={chartData.storyPointsByAssignee || []} 
+                        issues={issues?.all}
+                        onIssueClick={(issues) => handleMetricClick(issues, 'Assignee Issues')}
+                      />
                     </CardContent>
                   </Card>
 
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Bugs vs Stories vs Tasks</CardTitle>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleMetricClick(issues?.all || [], 'Bugs vs Stories - All Issues')}
+                      >
+                        View All
+                      </Button>
                     </CardHeader>
                     <CardContent>
                       <BugsVsStoriesChart
@@ -526,8 +553,15 @@ export default function DashboardPage() {
 
                 {/* Created vs Resolved Trend */}
                 <Card className="mb-6">
-                  <CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle>Created vs Resolved Trend</CardTitle>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleMetricClick(issues?.all || [], 'Created vs Resolved - All Issues')}
+                    >
+                      View All
+                    </Button>
                   </CardHeader>
                   <CardContent>
                     <CreatedResolvedTrendChart 
@@ -541,8 +575,15 @@ export default function DashboardPage() {
                 {/* Workload Distribution & Issue Aging */}
                 <div className="grid gap-6 md:grid-cols-2 mb-6">
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Workload Distribution</CardTitle>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleMetricClick(issues?.all || [], 'Workload Distribution - All Issues')}
+                      >
+                        View All
+                      </Button>
                     </CardHeader>
                     <CardContent>
                       <WorkloadDistributionChart 
@@ -554,11 +595,28 @@ export default function DashboardPage() {
                   </Card>
 
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Issue Aging</CardTitle>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleMetricClick(
+                          (issues?.all || []).filter((issue: JiraIssue) => 
+                            issue.fields.status?.statusCategory?.key !== 'done'
+                          ), 
+                          'Issue Aging - All Open Issues',
+                          true
+                        )}
+                      >
+                        View All
+                      </Button>
                     </CardHeader>
                     <CardContent>
-                      <IssueAgingChart data={chartData.issueAging || []} />
+                      <IssueAgingChart 
+                        data={chartData.issueAging || []} 
+                        issues={issues?.all}
+                        onIssueClick={(issues) => handleMetricClick(issues, 'Aging Issues', true)}
+                      />
                     </CardContent>
                   </Card>
                 </div>
@@ -587,7 +645,11 @@ export default function DashboardPage() {
         issues={modalIssues}
         onClose={() => setModalOpen(false)}
         techLabels={techLabels}
+        showAge={modalShowAge}
       />
+
+      {/* Clear All Notifications Button - Fixed Bottom Right */}
+      <ClearAllToasts />
     </div>
   );
 }

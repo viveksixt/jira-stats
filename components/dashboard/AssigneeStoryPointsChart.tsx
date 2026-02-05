@@ -25,6 +25,8 @@ interface AssigneeData {
 interface AssigneeStoryPointsChartProps {
   data: AssigneeData[];
   chartType?: 'bar' | 'pie';
+  issues?: import('@/types/jira').JiraIssue[];
+  onIssueClick?: (issues: import('@/types/jira').JiraIssue[]) => void;
 }
 
 const COLORS = [
@@ -77,7 +79,17 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-export function AssigneeStoryPointsChart({ data, chartType = 'bar' }: AssigneeStoryPointsChartProps) {
+export function AssigneeStoryPointsChart({ data, chartType = 'bar', issues, onIssueClick }: AssigneeStoryPointsChartProps) {
+  const handleBarClick = (data: any) => {
+    if (issues && onIssueClick && data && data.assignee) {
+      const assigneeName = data.assignee;
+      const filteredIssues = issues.filter(issue => {
+        const issueAssignee = issue.fields.assignee?.displayName || 'Unassigned';
+        return issueAssignee === assigneeName;
+      });
+      onIssueClick(filteredIssues);
+    }
+  };
   const [hiddenAssignees, setHiddenAssignees] = useState<Set<string>>(new Set());
   const [type, setType] = useState<'bar' | 'pie'>(chartType);
 
@@ -162,7 +174,12 @@ export function AssigneeStoryPointsChart({ data, chartType = 'bar' }: AssigneeSt
                 tick={{ fontSize: 12 }}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="storyPoints" name="Story Points">
+              <Bar 
+                dataKey="storyPoints" 
+                name="Story Points"
+                onClick={handleBarClick}
+                style={{ cursor: issues && onIssueClick ? 'pointer' : 'default' }}
+              >
                 {filteredData.map((entry, index) => {
                   const originalIndex = data.findIndex(d => d.assignee === entry.assignee);
                   return (
@@ -187,6 +204,8 @@ export function AssigneeStoryPointsChart({ data, chartType = 'bar' }: AssigneeSt
                   `${assignee}: ${(percent * 100).toFixed(0)}%`
                 }
                 labelLine={false}
+                onClick={handleBarClick}
+                style={{ cursor: issues && onIssueClick ? 'pointer' : 'default' }}
               >
                 {filteredData.map((entry, index) => {
                   const originalIndex = data.findIndex(d => d.assignee === entry.assignee);

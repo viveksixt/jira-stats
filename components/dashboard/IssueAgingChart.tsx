@@ -23,6 +23,8 @@ interface AgingData {
 
 interface IssueAgingChartProps {
   data: AgingData[];
+  issues?: import('@/types/jira').JiraIssue[];
+  onIssueClick?: (issues: import('@/types/jira').JiraIssue[]) => void;
 }
 
 const COLORS = [
@@ -72,9 +74,18 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-export function IssueAgingChart({ data }: IssueAgingChartProps) {
+export function IssueAgingChart({ data, issues, onIssueClick }: IssueAgingChartProps) {
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
   const [hiddenRanges, setHiddenRanges] = useState<Set<string>>(new Set());
+
+  const handleBarClick = (data: any) => {
+    if (issues && onIssueClick && data && data.issues) {
+      // Filter issues by the issue keys in this age range
+      const issueKeys = data.issues;
+      const filteredIssues = issues.filter(issue => issueKeys.includes(issue.key));
+      onIssueClick(filteredIssues);
+    }
+  };
 
   const toggleRange = (range: string) => {
     const newHidden = new Set(hiddenRanges);
@@ -173,7 +184,12 @@ export function IssueAgingChart({ data }: IssueAgingChartProps) {
               <XAxis dataKey="range" />
               <YAxis />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="count" name="Issues">
+              <Bar 
+                dataKey="count" 
+                name="Issues"
+                onClick={handleBarClick}
+                style={{ cursor: issues && onIssueClick ? 'pointer' : 'default' }}
+              >
                 {filteredData.map((entry, index) => {
                   const originalIndex = data.findIndex(d => d.range === entry.range);
                   return (
@@ -193,6 +209,8 @@ export function IssueAgingChart({ data }: IssueAgingChartProps) {
                 outerRadius={100}
                 label={({ range, percent }) => `${range}: ${(percent * 100).toFixed(0)}%`}
                 labelLine={false}
+                onClick={handleBarClick}
+                style={{ cursor: issues && onIssueClick ? 'pointer' : 'default' }}
               >
                 {filteredData.map((entry, index) => {
                   const originalIndex = data.findIndex(d => d.range === entry.range);

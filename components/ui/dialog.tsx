@@ -39,6 +39,20 @@ const DialogTrigger = ({ asChild, children, open, onOpenChange }: any) => {
 };
 
 const DialogContent = ({ className = '', children, open, onOpenChange }: DialogContentProps & { open?: boolean; onOpenChange?: (open: boolean) => void }) => {
+  // Add Escape key handler
+  React.useEffect(() => {
+    if (!open) return;
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onOpenChange?.(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [open, onOpenChange]);
+
   if (!open) return null;
 
   return (

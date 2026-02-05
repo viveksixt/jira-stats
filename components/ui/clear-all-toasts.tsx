@@ -46,14 +46,16 @@ export function ClearAllToasts({ className = '' }: ClearAllToastsProps) {
   if (!hasToasts) return null;
 
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={handleClearAll}
-      className={`text-xs ${className}`}
-      title="Clear all notifications"
-    >
-      Clear All
-    </Button>
+    <div className="fixed bottom-4 right-4 z-50">
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={handleClearAll}
+        className="shadow-lg"
+        title="Clear all notifications"
+      >
+        Clear All
+      </Button>
+    </div>
   );
 }
