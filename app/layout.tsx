@@ -6,7 +6,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Jira Metrics Dashboard",
+  title: "SPACE metrics ++",
   description: "Track sprint metrics, KPIs, tech debt ratio, and cycle time",
 };
 

@@ -26,6 +26,10 @@ interface FilterIconProps {
   onSprintsSelect: (sprints: JiraSprint[]) => void;
   techEpicKeys: string[];
   onTechEpicKeysChange: (keys: string[]) => void;
+  techLabels: string[];
+  onTechLabelsChange: (labels: string[]) => void;
+  ignoreIssueKeys: string[];
+  onIgnoreIssueKeysChange: (keys: string[]) => void;
   onClearFilters: () => void;
   onJQLExecute: (jql: string) => Promise<void>;
   jqlLoading?: boolean;
@@ -46,6 +50,10 @@ export function FilterIcon({
   onSprintsSelect,
   techEpicKeys,
   onTechEpicKeysChange,
+  techLabels,
+  onTechLabelsChange,
+  ignoreIssueKeys,
+  onIgnoreIssueKeysChange,
   onClearFilters,
   onJQLExecute,
   jqlLoading = false,
@@ -92,6 +100,10 @@ export function FilterIcon({
             onSprintsSelect={onSprintsSelect}
             techEpicKeys={techEpicKeys}
             onTechEpicKeysChange={onTechEpicKeysChange}
+            techLabels={techLabels}
+            onTechLabelsChange={onTechLabelsChange}
+            ignoreIssueKeys={ignoreIssueKeys}
+            onIgnoreIssueKeysChange={onIgnoreIssueKeysChange}
             onClearFilters={onClearFilters}
             onJQLExecute={onJQLExecute}
             jqlLoading={jqlLoading}

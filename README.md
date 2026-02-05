@@ -1,4 +1,4 @@
-# Jira Metrics Dashboard
+# SPACE metrics ++
 
 A comprehensive, real-time dashboard for tracking Jira sprint metrics, KPIs, tech debt analysis, cycle time trends, and team velocity. Gain actionable insights into your team's productivity and technical debt management.
 

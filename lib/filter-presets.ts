@@ -8,6 +8,8 @@ export interface FilterPreset {
   boardId: number | null;
   sprintIds: number[];
   techEpicKeys: string[];
+  techLabels: string[];
+  ignoreIssueKeys: string[];
   createdAt: string;
 }
 

@@ -8,7 +8,6 @@ import { ChartDetailsModal } from '@/components/dashboard/ChartDetailsModal';
 import { MetricInfoModal } from '@/components/dashboard/MetricInfoModal';
 import { CycleTimeChart } from '@/components/dashboard/CycleTimeChart';
 import { TechDebtChart } from '@/components/dashboard/TechDebtChart';
-import { TechDebtSettings } from '@/components/dashboard/TechDebtSettings';
 import { AssigneeStoryPointsChart } from '@/components/dashboard/AssigneeStoryPointsChart';
 import { BugsVsStoriesChart } from '@/components/dashboard/BugsVsStoriesChart';
 import { BugsTrendChart } from '@/components/dashboard/BugsTrendChart';
@@ -437,6 +436,18 @@ export default function DashboardPage() {
     // Load tech epic keys
     setTechEpicKeys(preset.techEpicKeys);
     localStorage.setItem(preferenceKeys.techEpicKeys, JSON.stringify(preset.techEpicKeys));
+
+    // Load tech labels
+    if (preset.techLabels && preset.techLabels.length > 0) {
+      setTechLabels(preset.techLabels);
+      localStorage.setItem(preferenceKeys.techLabels, JSON.stringify(preset.techLabels));
+    }
+
+    // Load ignore keys
+    if (preset.ignoreIssueKeys && preset.ignoreIssueKeys.length > 0) {
+      setIgnoreIssueKeys(preset.ignoreIssueKeys);
+      localStorage.setItem(preferenceKeys.ignoreIssueKeys, JSON.stringify(preset.ignoreIssueKeys));
+    }
   };
 
   // Handle JQL query execution
@@ -511,7 +522,7 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Jira Metrics Dashboard</h1>
+            <h1 className="text-2xl font-bold">Space metrics ++</h1>
             <div className="flex items-center gap-4">
               <FilterIcon
                 queryMode={queryMode}
@@ -537,16 +548,14 @@ export default function DashboardPage() {
                 onSprintsSelect={setSelectedSprints}
                 techEpicKeys={techEpicKeys}
                 onTechEpicKeysChange={handleTechEpicKeysChange}
+                techLabels={techLabels}
+                onTechLabelsChange={handleTechLabelsChange}
+                ignoreIssueKeys={ignoreIssueKeys}
+                onIgnoreIssueKeysChange={handleIgnoreIssueKeysChange}
                 onClearFilters={handleClearFilters}
                 onJQLExecute={handleJQLExecute}
                 jqlLoading={jqlLoading}
                 onLoadPreset={handleLoadPreset}
-              />
-              <TechDebtSettings
-                techLabels={techLabels}
-                onSave={handleTechLabelsChange}
-                ignoreIssueKeys={ignoreIssueKeys}
-                onIgnoreIssueKeysChange={handleIgnoreIssueKeysChange}
               />
               <div title="Connected to Jira" className="relative group">
                 <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
@@ -802,8 +811,8 @@ export default function DashboardPage() {
               {queryMode === 'board' && selectedProject && selectedBoard && selectedSprints.length > 0 ? (
                 <div>
                   <div className="text-4xl mb-4">⏳</div>
-                  <p className="text-lg font-semibold">Loading metrics...</p>
-                  <p className="text-muted-foreground mt-2">Please wait while we fetch your sprint data</p>
+                  <p className="text-lg font-semibold">Metrics would be loaded soon...</p>
+                  <p className="text-muted-foreground mt-2">Use filters to add project, board, and sprint to view metrics</p>
                 </div>
               ) : queryMode === 'jql' ? (
                 <div>

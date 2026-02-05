@@ -13,6 +13,7 @@ import { TechEpicsSelector } from './TechEpicsSelector';
 import { JQLQueryPanel } from './JQLQueryPanel';
 import { getPresets, deletePreset, savePreset, updatePreset, type FilterPreset } from '@/lib/filter-presets';
 import { showSuccess } from '@/lib/toast';
+import { DEFAULT_TECH_LABELS } from '@/lib/metrics/kpi';
 import type { JiraBoard, JiraProject, JiraSprint, QueryMode } from '@/types/jira';
 
 interface FilterModalProps {
@@ -36,6 +37,12 @@ interface FilterModalProps {
   // Tech Epics
   techEpicKeys: string[];
   onTechEpicKeysChange: (keys: string[]) => void;
+
+  // Tech Debt Configuration
+  techLabels: string[];
+  onTechLabelsChange: (labels: string[]) => void;
+  ignoreIssueKeys: string[];
+  onIgnoreIssueKeysChange: (keys: string[]) => void;
 
   // Clear Filters
   onClearFilters: () => void;
@@ -63,6 +70,10 @@ export function FilterModal({
   onSprintsSelect,
   techEpicKeys,
   onTechEpicKeysChange,
+  techLabels,
+  onTechLabelsChange,
+  ignoreIssueKeys,
+  onIgnoreIssueKeysChange,
   onClearFilters,
   onJQLExecute,
   jqlLoading = false,
@@ -73,6 +84,25 @@ export function FilterModal({
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [configExpanded, setConfigExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortColumn, setSortColumn] = useState<keyof FilterPreset | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Ensure tech labels and ignore keys are arrays
+  const safeTechLabels = Array.isArray(techLabels) ? techLabels : DEFAULT_TECH_LABELS;
+  const safeIgnoreKeys = Array.isArray(ignoreIssueKeys) ? ignoreIssueKeys : [];
+  const [labelsInput, setLabelsInput] = useState(safeTechLabels.join(', '));
+  const [ignoreKeysInput, setIgnoreKeysInput] = useState(safeIgnoreKeys.join(', '));
+
+  // Update local inputs when props change
+  useEffect(() => {
+    setLabelsInput(safeTechLabels.join(', '));
+  }, [safeTechLabels]);
+
+  useEffect(() => {
+    setIgnoreKeysInput(safeIgnoreKeys.join(', '));
+  }, [safeIgnoreKeys]);
 
   useEffect(() => {
     setPresets(getPresets());
@@ -103,6 +133,8 @@ export function FilterModal({
         boardId: selectedBoard?.id || null,
         sprintIds: selectedSprints.map(s => s.id),
         techEpicKeys,
+        techLabels: safeTechLabels,
+        ignoreIssueKeys: safeIgnoreKeys,
       });
       setPresets(getPresets()); // Refresh table
       showSuccess(`Preset "${preset.name}" saved`);
@@ -153,6 +185,108 @@ export function FilterModal({
   const handleCancelEdit = () => {
     setEditingPresetId(null);
     setEditingName('');
+  };
+
+  const handleDeleteAllPresets = () => {
+    if (confirm('Are you sure you want to delete all presets? This cannot be undone.')) {
+      presets.forEach(preset => deletePreset(preset.id));
+      setPresets([]);
+      showSuccess('All presets deleted');
+    }
+  };
+
+  const handleSort = (column: keyof FilterPreset) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (column: keyof FilterPreset) => {
+    if (sortColumn !== column) return '↕️';
+    return sortDirection === 'asc' ? '↑' : '↓';
+  };
+
+  // Filter and sort presets
+  const filteredAndSortedPresets = presets
+    .filter((preset) => {
+      if (!searchQuery.trim()) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        preset.name.toLowerCase().includes(query) ||
+        getProjectName(preset.projectKey).toLowerCase().includes(query) ||
+        getBoardName(preset.boardId).toLowerCase().includes(query) ||
+        getSprintNames(preset.sprintIds).toLowerCase().includes(query) ||
+        (preset.techLabels && preset.techLabels.join(', ').toLowerCase().includes(query)) ||
+        (preset.ignoreIssueKeys && preset.ignoreIssueKeys.join(', ').toLowerCase().includes(query))
+      );
+    })
+    .sort((a, b) => {
+      if (!sortColumn) return 0;
+      
+      let aValue: any = a[sortColumn];
+      let bValue: any = b[sortColumn];
+      
+      // Handle different data types
+      if (sortColumn === 'createdAt') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
+      } else if (sortColumn === 'sprintIds' || sortColumn === 'techEpicKeys' || sortColumn === 'techLabels' || sortColumn === 'ignoreIssueKeys') {
+        aValue = Array.isArray(aValue) ? aValue.length : 0;
+        bValue = Array.isArray(bValue) ? bValue.length : 0;
+      } else if (sortColumn === 'projectKey') {
+        aValue = getProjectName(aValue);
+        bValue = getProjectName(bValue);
+      } else if (sortColumn === 'boardId') {
+        aValue = getBoardName(aValue);
+        bValue = getBoardName(bValue);
+      }
+      
+      // Handle null/undefined values
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return 1;
+      if (bValue == null) return -1;
+      
+      // Compare values
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        const comparison = aValue.toLowerCase().localeCompare(bValue.toLowerCase());
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+      
+      const comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+  const handleLabelsInputChange = (value: string) => {
+    setLabelsInput(value);
+  };
+
+  const handleLabelsInputBlur = () => {
+    const labels = labelsInput
+      .split(',')
+      .map(l => l.trim())
+      .filter(l => l.length > 0);
+    
+    if (labels.length === 0) {
+      onTechLabelsChange(DEFAULT_TECH_LABELS);
+      setLabelsInput(DEFAULT_TECH_LABELS.join(', '));
+    } else {
+      onTechLabelsChange(labels);
+    }
+  };
+
+  const handleIgnoreKeysInputChange = (value: string) => {
+    setIgnoreKeysInput(value);
+  };
+
+  const handleIgnoreKeysInputBlur = () => {
+    const keys = ignoreKeysInput
+      .split(',')
+      .map(k => k.trim())
+      .filter(k => k.length > 0);
+    onIgnoreIssueKeysChange(keys);
   };
 
   return (
@@ -232,11 +366,89 @@ export function FilterModal({
         </div>
       )}
 
+      {/* Configuration Section */}
+      <div className="border rounded-lg p-4 space-y-4">
+        <div className="flex items-center justify-between cursor-pointer" onClick={() => setConfigExpanded(!configExpanded)}>
+          <h3 className="font-semibold text-sm">Additional Filters</h3>
+          <span className={`transition-transform ${configExpanded ? 'rotate-180' : ''}`}>
+            ▼
+          </span>
+        </div>
+
+        {configExpanded && (
+          <div className="space-y-4 pt-2 border-t">
+            <div className="space-y-2">
+              <Label htmlFor="tech-labels" className="text-sm">Tech Debt Labels</Label>
+              <Input
+                id="tech-labels"
+                placeholder="tech, tech-debt, tech_debt"
+                value={labelsInput}
+                onChange={(e) => handleLabelsInputChange(e.target.value)}
+                onBlur={handleLabelsInputBlur}
+                className="text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter comma-separated label names (case-insensitive)
+              </p>
+              <div className="rounded-md bg-muted p-2 mt-2">
+                <p className="text-xs font-medium mb-1">Current labels:</p>
+                <div className="flex flex-wrap gap-1">
+                  {safeTechLabels.map((label, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t">
+              <Label htmlFor="ignore-keys" className="text-sm">Ignore Issue Keys</Label>
+              <Input
+                id="ignore-keys"
+                placeholder="PROJ-123, PROJ-456"
+                value={ignoreKeysInput}
+                onChange={(e) => handleIgnoreKeysInputChange(e.target.value)}
+                onBlur={handleIgnoreKeysInputBlur}
+                className="text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter comma-separated issue keys to exclude from all metrics
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Presets Table */}
       <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-        <div className="mb-2">
+        <div className="flex items-center justify-between mb-2">
           <Label className="text-sm font-medium">Available Presets</Label>
+          {presets.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDeleteAllPresets}
+              className="h-7 w-7 p-0 hover:bg-destructive hover:text-destructive-foreground"
+              title="Delete all presets"
+            >
+              ⊘
+            </Button>
+          )}
         </div>
+        {presets.length > 0 && (
+          <div className="mb-2">
+            <Input
+              placeholder="Search presets..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+        )}
         {presets.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground text-sm">
             No presets saved yet. Click the 💾 button to create one.
@@ -247,16 +459,74 @@ export function FilterModal({
               <table className="w-full">
                 <thead className="bg-muted sticky top-0">
                   <tr>
-                    <th className="text-left p-3 text-sm font-medium">Name</th>
-                    <th className="text-left p-3 text-sm font-medium">Project</th>
-                    <th className="text-left p-3 text-sm font-medium">Board</th>
-                    <th className="text-left p-3 text-sm font-medium">Sprints</th>
-                    <th className="text-left p-3 text-sm font-medium">Created</th>
+                    <th 
+                      className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted/80 select-none"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Name {getSortIcon('name')}
+                      </div>
+                    </th>
+                    <th 
+                      className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted/80 select-none"
+                      onClick={() => handleSort('projectKey')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Project {getSortIcon('projectKey')}
+                      </div>
+                    </th>
+                    <th 
+                      className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted/80 select-none"
+                      onClick={() => handleSort('boardId')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Board {getSortIcon('boardId')}
+                      </div>
+                    </th>
+                    <th 
+                      className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted/80 select-none"
+                      onClick={() => handleSort('sprintIds')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Sprints {getSortIcon('sprintIds')}
+                      </div>
+                    </th>
+                    <th 
+                      className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted/80 select-none"
+                      onClick={() => handleSort('techLabels')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Tech Labels {getSortIcon('techLabels')}
+                      </div>
+                    </th>
+                    <th 
+                      className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted/80 select-none"
+                      onClick={() => handleSort('ignoreIssueKeys')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Ignore Keys {getSortIcon('ignoreIssueKeys')}
+                      </div>
+                    </th>
+                    <th 
+                      className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted/80 select-none"
+                      onClick={() => handleSort('createdAt')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Created {getSortIcon('createdAt')}
+                      </div>
+                    </th>
                     <th className="text-right p-3 text-sm font-medium w-20">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {presets.map((preset) => (
+                  {filteredAndSortedPresets.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-sm text-muted-foreground">
+                        {searchQuery ? 'No presets match your search' : 'No presets found'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAndSortedPresets.map((preset) => (
                     <tr
                       key={preset.id}
                       className="hover:bg-muted/50 cursor-pointer transition-colors"
@@ -328,6 +598,16 @@ export function FilterModal({
                       <td className="p-3 text-sm">{getProjectName(preset.projectKey)}</td>
                       <td className="p-3 text-sm">{getBoardName(preset.boardId)}</td>
                       <td className="p-3 text-sm">{getSprintNames(preset.sprintIds)}</td>
+                      <td className="p-3 text-sm">
+                        {preset.techLabels && preset.techLabels.length > 0 
+                          ? preset.techLabels.join(', ') 
+                          : '-'}
+                      </td>
+                      <td className="p-3 text-sm">
+                        {preset.ignoreIssueKeys && preset.ignoreIssueKeys.length > 0 
+                          ? preset.ignoreIssueKeys.join(', ') 
+                          : '-'}
+                      </td>
                       <td className="p-3 text-xs text-muted-foreground">
                         {new Date(preset.createdAt).toLocaleDateString()}
                       </td>
@@ -339,11 +619,12 @@ export function FilterModal({
                           className="h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground"
                           title="Delete preset"
                         >
-                          🗑️
+                          ⊘
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                    ))
+                  )}
                 </tbody>
               </table>
             </ScrollArea>
