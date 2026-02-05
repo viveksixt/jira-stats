@@ -36,6 +36,9 @@ function isTechIssue(issue: JiraIssue, techLabels?: string[]): boolean {
   ) || false;
 }
 
+type SortField = 'key' | 'type' | 'summary' | 'status' | 'assignee' | 'storyPoints' | 'age';
+type SortDirection = 'asc' | 'desc';
+
 export function ChartDetailsModal({ 
   isOpen, 
   title, 
@@ -46,6 +49,8 @@ export function ChartDetailsModal({
 }: ChartDetailsModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortField, setSortField] = useState<SortField>('key');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const itemsPerPage = 20;
 
   // Close on Escape key
@@ -60,15 +65,57 @@ export function ChartDetailsModal({
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
   const filteredIssues = issues.filter(issue =>
     issue.key.toLowerCase().includes(searchTerm.toLowerCase()) ||
     issue.fields.summary.toLowerCase().includes(searchTerm.toLowerCase()) ||
     issue.fields.labels?.some(label => label.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const totalPages = Math.ceil(filteredIssues.length / itemsPerPage);
+  const sortedIssues = [...filteredIssues].sort((a, b) => {
+    let compareValue = 0;
+    
+    switch (sortField) {
+      case 'key':
+        compareValue = a.key.localeCompare(b.key);
+        break;
+      case 'type':
+        compareValue = a.fields.issuetype.name.localeCompare(b.fields.issuetype.name);
+        break;
+      case 'summary':
+        compareValue = a.fields.summary.localeCompare(b.fields.summary);
+        break;
+      case 'status':
+        compareValue = a.fields.status.name.localeCompare(b.fields.status.name);
+        break;
+      case 'assignee':
+        const aAssignee = a.fields.assignee?.displayName || 'Unassigned';
+        const bAssignee = b.fields.assignee?.displayName || 'Unassigned';
+        compareValue = aAssignee.localeCompare(bAssignee);
+        break;
+      case 'storyPoints':
+        compareValue = getStoryPoints(a) - getStoryPoints(b);
+        break;
+      case 'age':
+        compareValue = calculateAge(a) - calculateAge(b);
+        break;
+    }
+    
+    return sortDirection === 'asc' ? compareValue : -compareValue;
+  });
+
+  const totalPages = Math.ceil(sortedIssues.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedIssues = filteredIssues.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedIssues = sortedIssues.slice(startIndex, startIndex + itemsPerPage);
 
   if (!isOpen) return null;
 
@@ -111,14 +158,86 @@ export function ChartDetailsModal({
             <table className="w-full">
               <thead className="bg-muted/50 sticky top-0">
                 <tr>
-                  <th className="text-left p-3 text-sm font-medium">Key</th>
-                  <th className="text-left p-3 text-sm font-medium">Type</th>
-                  <th className="text-left p-3 text-sm font-medium">Summary</th>
-                  <th className="text-left p-3 text-sm font-medium">Status</th>
-                  <th className="text-left p-3 text-sm font-medium">Assignee</th>
+                  <th 
+                    className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted select-none"
+                    onClick={() => handleSort('key')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Key
+                      {sortField === 'key' && (
+                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted select-none"
+                    onClick={() => handleSort('type')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Type
+                      {sortField === 'type' && (
+                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted select-none"
+                    onClick={() => handleSort('summary')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Summary
+                      {sortField === 'summary' && (
+                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted select-none"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Status
+                      {sortField === 'status' && (
+                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted select-none"
+                    onClick={() => handleSort('assignee')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Assignee
+                      {sortField === 'assignee' && (
+                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </div>
+                  </th>
                   <th className="text-left p-3 text-sm font-medium">Labels</th>
-                  <th className="text-left p-3 text-sm font-medium">Story Points</th>
-                  {showAge && <th className="text-left p-3 text-sm font-medium">Age (days)</th>}
+                  <th 
+                    className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted select-none"
+                    onClick={() => handleSort('storyPoints')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Story Points
+                      {sortField === 'storyPoints' && (
+                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </div>
+                  </th>
+                  {showAge && (
+                    <th 
+                      className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted select-none"
+                      onClick={() => handleSort('age')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Age (days)
+                        {sortField === 'age' && (
+                          <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y">

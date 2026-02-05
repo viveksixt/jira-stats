@@ -84,6 +84,18 @@ export function BugsVsStoriesChart({ data, issues, onIssueTypeClick }: BugsVsSto
     }
   };
 
+  const handlePieClick = (data: any) => {
+    if (data && data.key) {
+      handleTypeClick(data.key);
+    }
+  };
+
+  const handleBarClick = (data: any) => {
+    if (data && data.key) {
+      handleTypeClick(data.key);
+    }
+  };
+
   const chartData = useMemo(() => {
     const items = [
       { name: 'Bugs', value: data.bugs, key: 'bugs', color: COLORS.bugs },
@@ -133,10 +145,7 @@ export function BugsVsStoriesChart({ data, issues, onIssueTypeClick }: BugsVsSto
         {allTypes.map((item) => (
           <button
             key={item.key}
-            onClick={() => {
-              toggleType(item.key);
-              handleTypeClick(item.key);
-            }}
+            onClick={() => toggleType(item.key)}
             className={`px-2 py-1 text-xs rounded-md border transition-all flex items-center gap-1 ${
               hiddenTypes.has(item.key)
                 ? 'bg-muted text-muted-foreground line-through opacity-50'
@@ -145,7 +154,7 @@ export function BugsVsStoriesChart({ data, issues, onIssueTypeClick }: BugsVsSto
             style={{
               borderColor: hiddenTypes.has(item.key) ? 'transparent' : item.color,
             }}
-            title={issues && onIssueTypeClick ? 'Click to view issues' : undefined}
+            title="Click to toggle visibility"
           >
             <span
               className="inline-block w-2 h-2 rounded-full"
@@ -171,6 +180,8 @@ export function BugsVsStoriesChart({ data, issues, onIssueTypeClick }: BugsVsSto
                 innerRadius={60}
                 label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                 labelLine={true}
+                onClick={handlePieClick}
+                style={{ cursor: 'pointer' }}
               >
                 {chartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
@@ -184,7 +195,12 @@ export function BugsVsStoriesChart({ data, issues, onIssueTypeClick }: BugsVsSto
               <XAxis dataKey="name" />
               <YAxis />
               <Tooltip content={<CustomTooltip total={visibleTotal} />} />
-              <Bar dataKey="value" name="Count">
+              <Bar 
+                dataKey="value" 
+                name="Count"
+                onClick={handleBarClick}
+                style={{ cursor: 'pointer' }}
+              >
                 {chartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}

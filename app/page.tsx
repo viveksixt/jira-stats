@@ -115,6 +115,46 @@ export default function DashboardPage() {
     checkConnection();
   }, [router]);
 
+  // Restore persisted filter values when data loads
+  useEffect(() => {
+    if (projects.length > 0) {
+      const savedProjectKey = localStorage.getItem(preferenceKeys.project);
+      if (savedProjectKey) {
+        const found = projects.find(p => p.key === savedProjectKey);
+        if (found) {
+          setSelectedProject(found);
+          loadBoards(found.key);
+        }
+      }
+    }
+  }, [projects]);
+
+  // Restore board selection
+  useEffect(() => {
+    if (boards.length > 0) {
+      const savedBoardId = localStorage.getItem(preferenceKeys.board);
+      if (savedBoardId) {
+        const found = boards.find(b => b.id === parseInt(savedBoardId));
+        if (found) {
+          setSelectedBoard(found);
+        }
+      }
+    }
+  }, [boards]);
+
+  // Restore sprint selection
+  useEffect(() => {
+    if (sprints.length > 0) {
+      const savedSprintId = localStorage.getItem(preferenceKeys.sprint);
+      if (savedSprintId) {
+        const found = sprints.find(s => s.id === parseInt(savedSprintId));
+        if (found) {
+          setSelectedSprint(found);
+        }
+      }
+    }
+  }, [sprints]);
+
   const loadProjects = async () => {
     const cachedProjects = cache.get<JiraProject[]>(cacheKeys.projects);
     if (cachedProjects) {
@@ -180,6 +220,7 @@ export default function DashboardPage() {
   // Handle project change
   const handleProjectSelect = (project: JiraProject) => {
     setSelectedProject(project);
+    localStorage.setItem(preferenceKeys.project, project.key);
     loadBoards(project.key);
     setSprints([]);
     setSelectedSprint(null);
@@ -190,6 +231,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (selectedBoard) {
       loadSprints(selectedBoard.id);
+      localStorage.setItem(preferenceKeys.board, selectedBoard.id.toString());
     }
   }, [selectedBoard]);
 
@@ -232,6 +274,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (selectedSprint) {
       loadMetrics(selectedSprint.id);
+      localStorage.setItem(preferenceKeys.sprint, selectedSprint.id.toString());
     }
   }, [selectedSprint]);
 
@@ -379,9 +422,15 @@ export default function DashboardPage() {
               <span className="text-sm text-green-600 flex items-center gap-1">
                 ✓ Connected
               </span>
-              <Button variant="outline" onClick={() => router.push('/settings')}>
-                Settings
-              </Button>
+              <button 
+                onClick={() => router.push('/settings')}
+                title="User Settings"
+                className="p-2 hover:bg-accent rounded-md transition-colors"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -461,13 +510,12 @@ export default function DashboardPage() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle>Cycle Time Trend</CardTitle>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
+                  <button 
+                    className="text-sm text-blue-600 hover:underline cursor-pointer"
                     onClick={() => handleMetricClick(issues?.cycleTime || [], 'Cycle Time - All Issues')}
                   >
                     View All
-                  </Button>
+                  </button>
                 </CardHeader>
                 <CardContent>
                   <CycleTimeChart
@@ -483,13 +531,12 @@ export default function DashboardPage() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle>Tech Debt Ratio Trend</CardTitle>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
+                  <button 
+                    className="text-sm text-blue-600 hover:underline cursor-pointer"
                     onClick={() => handleMetricClick([...(issues?.techDebt || []), ...(issues?.product || [])], 'Tech Debt Ratio - All Issues')}
                   >
                     View All
-                  </Button>
+                  </button>
                 </CardHeader>
                 <CardContent>
                   <TechDebtChart
@@ -513,13 +560,12 @@ export default function DashboardPage() {
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Story Points by Assignee</CardTitle>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
+                      <button 
+                        className="text-sm text-blue-600 hover:underline cursor-pointer"
                         onClick={() => handleMetricClick(issues?.all || [], 'Story Points by Assignee - All Issues')}
                       >
                         View All
-                      </Button>
+                      </button>
                     </CardHeader>
                     <CardContent>
                       <AssigneeStoryPointsChart 
@@ -533,13 +579,12 @@ export default function DashboardPage() {
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Bugs vs Stories vs Tasks</CardTitle>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
+                      <button 
+                        className="text-sm text-blue-600 hover:underline cursor-pointer"
                         onClick={() => handleMetricClick(issues?.all || [], 'Bugs vs Stories - All Issues')}
                       >
                         View All
-                      </Button>
+                      </button>
                     </CardHeader>
                     <CardContent>
                       <BugsVsStoriesChart
@@ -555,13 +600,12 @@ export default function DashboardPage() {
                 <Card className="mb-6">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle>Created vs Resolved Trend</CardTitle>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
+                    <button 
+                      className="text-sm text-blue-600 hover:underline cursor-pointer"
                       onClick={() => handleMetricClick(issues?.all || [], 'Created vs Resolved - All Issues')}
                     >
                       View All
-                    </Button>
+                    </button>
                   </CardHeader>
                   <CardContent>
                     <CreatedResolvedTrendChart 
@@ -577,13 +621,12 @@ export default function DashboardPage() {
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Workload Distribution</CardTitle>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
+                      <button 
+                        className="text-sm text-blue-600 hover:underline cursor-pointer"
                         onClick={() => handleMetricClick(issues?.all || [], 'Workload Distribution - All Issues')}
                       >
                         View All
-                      </Button>
+                      </button>
                     </CardHeader>
                     <CardContent>
                       <WorkloadDistributionChart 
@@ -597,9 +640,8 @@ export default function DashboardPage() {
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle>Issue Aging</CardTitle>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
+                      <button 
+                        className="text-sm text-blue-600 hover:underline cursor-pointer"
                         onClick={() => handleMetricClick(
                           (issues?.all || []).filter((issue: JiraIssue) => 
                             issue.fields.status?.statusCategory?.key !== 'done'
@@ -609,7 +651,7 @@ export default function DashboardPage() {
                         )}
                       >
                         View All
-                      </Button>
+                      </button>
                     </CardHeader>
                     <CardContent>
                       <IssueAgingChart 

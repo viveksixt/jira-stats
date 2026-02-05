@@ -1,4 +1,5 @@
 import type { JiraIssue } from '@/types/jira';
+import { getStoryPoints } from './velocity';
 
 // Story points per assignee
 export interface AssigneeStoryPoints {
@@ -11,8 +12,13 @@ export function calculateStoryPointsByAssignee(issues: JiraIssue[]): AssigneeSto
   const assigneeMap = new Map<string, { storyPoints: number; issueCount: number }>();
 
   issues.forEach(issue => {
-    const assigneeName = issue.fields.assignee?.displayName || 'Unassigned';
-    const storyPoints = issue.fields.customfield_10016 || 0;
+    // Skip unassigned issues
+    if (!issue.fields.assignee?.displayName) {
+      return;
+    }
+
+    const assigneeName = issue.fields.assignee.displayName;
+    const storyPoints = getStoryPoints(issue);
 
     const current = assigneeMap.get(assigneeName) || { storyPoints: 0, issueCount: 0 };
     assigneeMap.set(assigneeName, {

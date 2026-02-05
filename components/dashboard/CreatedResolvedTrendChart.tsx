@@ -86,10 +86,10 @@ export function CreatedResolvedTrendChart({ data, issues, onIssueClick }: Create
   const [viewMode, setViewMode] = useState<'total' | 'bugs' | 'stories'>('total');
   const [chartType, setChartType] = useState<'area' | 'line'>('area');
 
-  const handlePointClick = (dataPoint: any) => {
-    if (issues && onIssueClick && dataPoint && dataPoint.payload) {
+  const handlePointClick = (event: any, data: any) => {
+    if (issues && onIssueClick && data && data.payload) {
       // Show all issues for the clicked date
-      const clickedDate = dataPoint.payload.date;
+      const clickedDate = data.payload.date;
       const dateIssues = issues.filter(issue => {
         const createdDate = new Date(issue.fields.created).toISOString().split('T')[0];
         const resolvedDate = issue.fields.resolutiondate 
