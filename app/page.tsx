@@ -11,7 +11,7 @@ import { TechDebtChart } from '@/components/dashboard/TechDebtChart';
 import { TechDebtSettings } from '@/components/dashboard/TechDebtSettings';
 import { AssigneeStoryPointsChart } from '@/components/dashboard/AssigneeStoryPointsChart';
 import { BugsVsStoriesChart } from '@/components/dashboard/BugsVsStoriesChart';
-import { CreatedResolvedTrendChart } from '@/components/dashboard/CreatedResolvedTrendChart';
+import { BugsTrendChart } from '@/components/dashboard/BugsTrendChart';
 import { WorkloadDistributionChart } from '@/components/dashboard/WorkloadDistributionChart';
 import { IssueAgingChart } from '@/components/dashboard/IssueAgingChart';
 import { FilterPanel } from '@/components/dashboard/FilterPanel';
@@ -21,7 +21,7 @@ import { ClearAllToasts } from '@/components/ui/clear-all-toasts';
 import { showSuccess, showError, showLoading } from '@/lib/toast';
 import { cache, cacheKeys, preferenceKeys } from '@/lib/cache';
 import { DEFAULT_TECH_LABELS } from '@/lib/metrics/kpi';
-import type { JiraBoard, JiraProject, JiraSprint, QueryMode, BoardType, JiraIssue, JiraComponent } from '@/types/jira';
+import type { JiraBoard, JiraProject, JiraSprint, QueryMode, BoardType, JiraIssue } from '@/types/jira';
 import { toast } from 'sonner';
 
 export default function DashboardPage() {
@@ -39,8 +39,6 @@ export default function DashboardPage() {
   const [selectedBoard, setSelectedBoard] = useState<JiraBoard | null>(null);
   const [sprints, setSprints] = useState<JiraSprint[]>([]);
   const [selectedSprint, setSelectedSprint] = useState<JiraSprint | null>(null);
-  const [components, setComponents] = useState<JiraComponent[]>([]);
-  const [selectedComponent, setSelectedComponent] = useState<JiraComponent | null>(null);
 
   // JQL mode state
   const [jqlLoading, setJqlLoading] = useState(false);
@@ -131,7 +129,6 @@ export default function DashboardPage() {
         if (found) {
           setSelectedProject(found);
           loadBoards(found.key);
-          loadComponents(found.key);
         }
       }
     }
@@ -162,19 +159,6 @@ export default function DashboardPage() {
       }
     }
   }, [sprints]);
-
-  // Restore component selection
-  useEffect(() => {
-    if (components.length > 0) {
-      const savedComponentName = localStorage.getItem(preferenceKeys.component);
-      if (savedComponentName) {
-        const found = components.find(c => c.name === savedComponentName);
-        if (found) {
-          setSelectedComponent(found);
-        }
-      }
-    }
-  }, [components]);
 
   const loadProjects = async () => {
     const cachedProjects = cache.get<JiraProject[]>(cacheKeys.projects);
@@ -236,29 +220,6 @@ export default function DashboardPage() {
     }
   };
 
-  const loadComponents = async (projectKey: string) => {
-    const cacheKey = cacheKeys.components(projectKey);
-    const cachedComponents = cache.get<JiraComponent[]>(cacheKey);
-    if (cachedComponents) {
-      setComponents(cachedComponents);
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/components?projectKey=${projectKey}`);
-      if (!res.ok) {
-        throw new Error('Failed to load components');
-      }
-      const data = await res.json();
-      const componentsList = data.components || [];
-      setComponents(componentsList);
-      cache.set(cacheKey, componentsList, 600000);
-    } catch (error) {
-      console.error('Failed to load components:', error);
-      setComponents([]);
-    }
-  };
-
   // Removed board type change handler as board type toggle was removed
 
   // Handle project change
@@ -266,10 +227,8 @@ export default function DashboardPage() {
     setSelectedProject(project);
     localStorage.setItem(preferenceKeys.project, project.key);
     loadBoards(project.key);
-    loadComponents(project.key);
     setSprints([]);
     setSelectedSprint(null);
-    setSelectedComponent(null);
     setMetrics(null);
   };
 
@@ -339,8 +298,7 @@ export default function DashboardPage() {
     try {
       const techLabelsParam = techLabels.join(',');
       const ignoreKeysParam = ignoreIssueKeys.join(',');
-      const componentParam = selectedComponent ? `&component=${encodeURIComponent(selectedComponent.name)}` : '';
-      const res = await fetch(`/api/metrics?sprintId=${sprintId}&techLabels=${encodeURIComponent(techLabelsParam)}&ignoreKeys=${encodeURIComponent(ignoreKeysParam)}${componentParam}`);
+      const res = await fetch(`/api/metrics?sprintId=${sprintId}&techLabels=${encodeURIComponent(techLabelsParam)}&ignoreKeys=${encodeURIComponent(ignoreKeysParam)}`);
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || 'Failed to calculate metrics');
@@ -380,28 +338,6 @@ export default function DashboardPage() {
     setIgnoreIssueKeys(keys);
     localStorage.setItem(preferenceKeys.ignoreIssueKeys, JSON.stringify(keys));
     // Clear cache and reload metrics if we have a selected sprint
-    if (selectedSprint) {
-      cache.remove(cacheKeys.metrics(selectedSprint.id));
-      loadMetrics(selectedSprint.id);
-    }
-  };
-
-  // Handle component selection
-  const handleComponentSelect = (component: JiraComponent) => {
-    setSelectedComponent(component);
-    localStorage.setItem(preferenceKeys.component, component.name);
-    // Clear metrics cache and reload with new component filter
-    if (selectedSprint) {
-      cache.remove(cacheKeys.metrics(selectedSprint.id));
-      loadMetrics(selectedSprint.id);
-    }
-  };
-
-  // Handle component clear
-  const handleComponentClear = () => {
-    setSelectedComponent(null);
-    localStorage.removeItem(preferenceKeys.component);
-    // Clear metrics cache and reload without component filter
     if (selectedSprint) {
       cache.remove(cacheKeys.metrics(selectedSprint.id));
       loadMetrics(selectedSprint.id);
@@ -530,10 +466,6 @@ export default function DashboardPage() {
               setSelectedSprint(sprint);
               setMetrics(null);
             }}
-            components={components}
-            selectedComponent={selectedComponent}
-            onComponentSelect={handleComponentSelect}
-            onComponentClear={handleComponentClear}
             onJQLExecute={handleJQLExecute}
             jqlLoading={jqlLoading}
           />
@@ -692,22 +624,22 @@ export default function DashboardPage() {
                   </Card>
                 </div>
 
-                {/* Issue Trend (Bugs vs Stories) */}
+                {/* Bugs Trend */}
                 <Card className="mb-6">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle>Issue Trend (Bugs vs Stories)</CardTitle>
+                    <CardTitle>Bugs Trend</CardTitle>
                     <button 
                       className="text-sm text-blue-600 hover:underline cursor-pointer"
-                      onClick={() => handleMetricClick(issues?.all || [], 'Issue Trend - All Issues')}
+                      onClick={() => handleMetricClick(issues?.bugs || [], 'Bugs - All Issues')}
                     >
                       View All
                     </button>
                   </CardHeader>
                   <CardContent>
-                    <CreatedResolvedTrendChart 
-                      data={chartData.createdResolvedTrend || []} 
-                      issues={issues?.all}
-                      onIssueClick={(issues) => handleMetricClick(issues, 'Issues for Selected Date')}
+                    <BugsTrendChart 
+                      data={chartData.bugsTrend || []} 
+                      issues={issues?.bugs}
+                      onIssueClick={(issues) => handleMetricClick(issues, 'Bugs for Selected Date')}
                     />
                   </CardContent>
                 </Card>

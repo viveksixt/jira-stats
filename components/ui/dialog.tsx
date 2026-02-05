@@ -42,8 +42,28 @@ const DialogContent = ({ className = '', children, open, onOpenChange }: DialogC
   const [position, setPosition] = React.useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = React.useState(false);
   const [dragOffset, setDragOffset] = React.useState({ x: 0, y: 0 });
+  const [isInitialized, setIsInitialized] = React.useState(false);
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const headerRef = React.useRef<HTMLDivElement>(null);
+
+  // Initialize dialog to be vertically centered when opened
+  React.useEffect(() => {
+    if (open && !isInitialized) {
+      // Use a small timeout to ensure the DOM is fully rendered
+      const timer = setTimeout(() => {
+        if (dialogRef.current) {
+          const dialogHeight = dialogRef.current.offsetHeight;
+          const windowHeight = window.innerHeight;
+          const centerY = Math.max(0, (windowHeight - dialogHeight) / 2);
+          setPosition({ x: 0, y: centerY });
+          setIsInitialized(true);
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    } else if (!open) {
+      setIsInitialized(false);
+    }
+  }, [open]);
 
   // Add Escape key handler
   React.useEffect(() => {
@@ -97,7 +117,7 @@ const DialogContent = ({ className = '', children, open, onOpenChange }: DialogC
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/50"
@@ -107,9 +127,9 @@ const DialogContent = ({ className = '', children, open, onOpenChange }: DialogC
       {/* Dialog */}
       <div 
         ref={dialogRef}
-        className={`relative bg-background rounded-lg shadow-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto z-50 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} ${className}`}
+        className={`fixed bg-background rounded-lg shadow-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto z-50 left-1/2 -translate-x-1/2 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} ${className}`}
         style={{
-          transform: `translate(${position.x}px, ${position.y}px)`,
+          transform: `translate(calc(-50% + ${position.x}px), ${position.y}px)`,
           transition: isDragging ? 'none' : 'transform 0.2s ease-out',
         }}
         onMouseDown={handleMouseDown}

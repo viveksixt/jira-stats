@@ -35,12 +35,21 @@ const COLORS = [
   '#ef4444', // Red - stale
 ];
 
+const RANGE_LABELS: Record<string, string> = {
+  '< 1 week': 'Fresh (< 1 week)',
+  '1-2 weeks': 'Active (1-2 weeks)',
+  '2-4 weeks': 'Aging (2-4 weeks)',
+  '1-2 months': 'Stale (1-2 months)',
+  '> 2 months': 'Critical (> 2 months)',
+};
+
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
+    const displayRange = RANGE_LABELS[data.range] || data.range;
     return (
       <div className="bg-background border rounded-lg shadow-lg p-3 max-w-[300px]">
-        <p className="font-semibold text-foreground">{data.range}</p>
+        <p className="font-semibold text-foreground">{displayRange}</p>
         <p className="text-sm text-muted-foreground mb-2">
           Count: <span className="font-medium text-foreground">{data.count}</span>
         </p>
@@ -170,7 +179,7 @@ export function IssueAgingChart({ data, issues, onIssueClick }: IssueAgingChartP
               className="inline-block w-2 h-2 rounded-full"
               style={{ backgroundColor: COLORS[index] }}
             />
-            {item.range}: {item.count}
+            {RANGE_LABELS[item.range] || item.range}: {item.count}
           </button>
         ))}
       </div>
@@ -201,13 +210,16 @@ export function IssueAgingChart({ data, issues, onIssueClick }: IssueAgingChartP
           ) : (
             <PieChart>
               <Pie
-                data={filteredData}
+                data={filteredData.map(item => ({
+                  ...item,
+                  displayRange: RANGE_LABELS[item.range] || item.range
+                }))}
                 dataKey="count"
-                nameKey="range"
+                nameKey="displayRange"
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                label={({ range, percent }) => `${range}: ${(percent * 100).toFixed(0)}%`}
+                label={({ displayRange, percent }) => `${displayRange}: ${(percent * 100).toFixed(0)}%`}
                 labelLine={false}
                 onClick={handleBarClick}
                 style={{ cursor: issues && onIssueClick ? 'pointer' : 'default' }}

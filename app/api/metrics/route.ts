@@ -5,7 +5,6 @@ import {
   calculateSprintMetrics,
   calculateStoryPointsByAssignee,
   calculateIssueTypeBreakdown,
-  calculateCreatedResolvedTrend,
   calculateWorkloadDistribution,
   calculateIssueAging,
   getIssuesByType,
@@ -103,7 +102,6 @@ export async function GET(request: NextRequest) {
     const chartData = {
       storyPointsByAssignee: calculateStoryPointsByAssignee(issues),
       issueTypeBreakdown: calculateIssueTypeBreakdown(issues),
-      createdResolvedTrend: calculateCreatedResolvedTrend(issues, 'day'),
       workloadDistribution: calculateWorkloadDistribution(issues),
       issueAging: calculateIssueAging(issues),
       bugsTrend: calculateProductionBugsTrend(bugs, 'week'),
