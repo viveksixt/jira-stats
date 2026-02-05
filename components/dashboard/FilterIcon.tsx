@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -8,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { FilterModal } from './FilterModal';
+import { getPresets, type FilterPreset } from '@/lib/filter-presets';
 import type { JiraBoard, JiraProject, JiraSprint, QueryMode } from '@/types/jira';
 
 interface FilterIconProps {
@@ -27,7 +29,7 @@ interface FilterIconProps {
   onClearFilters: () => void;
   onJQLExecute: (jql: string) => Promise<void>;
   jqlLoading?: boolean;
-  onPresetManagement?: () => void;
+  onLoadPreset?: (preset: FilterPreset) => void;
 }
 
 export function FilterIcon({
@@ -47,7 +49,7 @@ export function FilterIcon({
   onClearFilters,
   onJQLExecute,
   jqlLoading = false,
-  onPresetManagement,
+  onLoadPreset,
 }: FilterIconProps) {
   const [open, setOpen] = useState(false);
 
@@ -69,9 +71,12 @@ export function FilterIcon({
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="w-[95vw] h-[95vh] overflow-auto">
-          <DialogHeader>
+        <DialogContent className="w-[95vw] h-[95vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex flex-row items-center justify-between">
             <DialogTitle>Filter Options</DialogTitle>
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              ✕
+            </Button>
           </DialogHeader>
           <FilterModal
             queryMode={queryMode}
@@ -91,7 +96,7 @@ export function FilterIcon({
             onJQLExecute={onJQLExecute}
             jqlLoading={jqlLoading}
             onClose={() => setOpen(false)}
-            onPresetClick={onPresetManagement}
+            onLoadPreset={onLoadPreset}
           />
         </DialogContent>
       </Dialog>

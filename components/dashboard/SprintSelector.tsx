@@ -48,6 +48,19 @@ export function SprintSelector({ sprints, selectedSprints, onSelect }: SprintSel
     return sprint.name.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
+  // Sort filtered sprints to show selected items at the top
+  const sortedSprints = [...filteredSprints].sort((a, b) => {
+    const aSelected = selectedSprints.some(s => s.id === a.id);
+    const bSelected = selectedSprints.some(s => s.id === b.id);
+    
+    // Selected items come first
+    if (aSelected && !bSelected) return -1;
+    if (!aSelected && bSelected) return 1;
+    
+    // If both selected or both unselected, maintain original order
+    return 0;
+  });
+
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
@@ -101,12 +114,12 @@ export function SprintSelector({ sprints, selectedSprints, onSelect }: SprintSel
             {/* Sprint List */}
             <ScrollArea className="h-[200px]">
               <div className="space-y-2 p-2">
-                {filteredSprints.length === 0 ? (
+                {sortedSprints.length === 0 ? (
                   <div className="text-sm text-muted-foreground text-center py-4">
                     No sprints match your search
                   </div>
                 ) : (
-                  filteredSprints.map(sprint => (
+                  sortedSprints.map(sprint => (
                     <div key={sprint.id} className="flex items-start space-x-2">
                       <Checkbox
                         id={`sprint-${sprint.id}`}

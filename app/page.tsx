@@ -15,7 +15,6 @@ import { BugsTrendChart } from '@/components/dashboard/BugsTrendChart';
 import { WorkloadDistributionChart } from '@/components/dashboard/WorkloadDistributionChart';
 import { IssueAgingChart } from '@/components/dashboard/IssueAgingChart';
 import { FilterIcon } from '@/components/dashboard/FilterIcon';
-import { PresetManagementModal } from '@/components/dashboard/PresetManagementModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ClearAllToasts } from '@/components/ui/clear-all-toasts';
@@ -41,7 +40,6 @@ export default function DashboardPage() {
   const [selectedBoard, setSelectedBoard] = useState<JiraBoard | null>(null);
   const [sprints, setSprints] = useState<JiraSprint[]>([]);
   const [selectedSprints, setSelectedSprints] = useState<JiraSprint[]>([]);
-  const [presetModalOpen, setPresetModalOpen] = useState(false);
 
   // JQL mode state
   const [jqlLoading, setJqlLoading] = useState(false);
@@ -439,8 +437,6 @@ export default function DashboardPage() {
     // Load tech epic keys
     setTechEpicKeys(preset.techEpicKeys);
     localStorage.setItem(preferenceKeys.techEpicKeys, JSON.stringify(preset.techEpicKeys));
-
-    setPresetModalOpen(false);
   };
 
   // Handle JQL query execution
@@ -544,7 +540,7 @@ export default function DashboardPage() {
                 onClearFilters={handleClearFilters}
                 onJQLExecute={handleJQLExecute}
                 jqlLoading={jqlLoading}
-                onPresetManagement={() => setPresetModalOpen(true)}
+                onLoadPreset={handleLoadPreset}
               />
               <TechDebtSettings
                 techLabels={techLabels}
@@ -828,21 +824,6 @@ export default function DashboardPage() {
         open={metricInfoOpen}
         onOpenChange={setMetricInfoOpen}
         metricType={selectedMetricType}
-      />
-
-      {/* Preset Management Modal */}
-      <PresetManagementModal
-        isOpen={presetModalOpen}
-        onClose={() => setPresetModalOpen(false)}
-        onLoadPreset={handleLoadPreset}
-        queryMode={queryMode}
-        selectedProject={selectedProject}
-        selectedBoard={selectedBoard}
-        selectedSprints={selectedSprints}
-        techEpicKeys={techEpicKeys}
-        projects={projects}
-        boards={boards}
-        sprints={sprints}
       />
 
       {/* Clear All Notifications Button - Fixed Bottom Right */}
