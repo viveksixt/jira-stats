@@ -14,6 +14,9 @@ import { BugsTrendChart } from '@/components/dashboard/BugsTrendChart';
 import { WorkloadDistributionChart } from '@/components/dashboard/WorkloadDistributionChart';
 import { IssueAgingChart } from '@/components/dashboard/IssueAgingChart';
 import { FilterIcon } from '@/components/dashboard/FilterIcon';
+import { VelocityFilters } from '@/components/velocity/VelocityFilters';
+import { TeamVelocityChart } from '@/components/velocity/TeamVelocityChart';
+import { EngineerVelocityChart } from '@/components/velocity/EngineerVelocityChart';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ClearAllToasts } from '@/components/ui/clear-all-toasts';
@@ -21,7 +24,7 @@ import { showSuccess, showError, showLoading } from '@/lib/toast';
 import { cache, cacheKeys, preferenceKeys } from '@/lib/cache';
 import { DEFAULT_TECH_LABELS } from '@/lib/metrics/kpi';
 import { loadPreset, type FilterPreset } from '@/lib/filter-presets';
-import type { JiraBoard, JiraProject, JiraSprint, QueryMode, BoardType, JiraIssue } from '@/types/jira';
+import type { JiraBoard, JiraProject, JiraSprint, QueryMode, BoardType, JiraIssue, VelocitySprintData, EngineerVelocityData, VelocityEngineer, VelocityTimelineConfig } from '@/types/jira';
 import { toast } from 'sonner';
 
 export default function DashboardPage() {
@@ -96,6 +99,20 @@ export default function DashboardPage() {
   const [issues, setIssues] = useState<any>(null);
   const [issuesByType, setIssuesByType] = useState<any>(null);
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'overview' | 'velocity'>('overview');
+
+  // Velocity analysis state
+  const [selectedVelocityBoard, setSelectedVelocityBoard] = useState<JiraBoard | null>(null);
+  const [teamVelocityData, setTeamVelocityData] = useState<VelocitySprintData[]>([]);
+  const [engineerVelocityData, setEngineerVelocityData] = useState<EngineerVelocityData[]>([]);
+  const [selectedEngineers, setSelectedEngineers] = useState<VelocityEngineer[]>([]);
+  const [timelineConfig, setTimelineConfig] = useState<VelocityTimelineConfig>({
+    mode: 'sprint-count',
+    sprintLimit: 20,
+  });
+  const [fetchingVelocity, setFetchingVelocity] = useState(false);
+
   // Preset loading state
   const [presetLoading, setPresetLoading] = useState(false);
   const isLoadingPresetRef = useRef(false);
@@ -164,6 +181,31 @@ export default function DashboardPage() {
       }
     }
   }, [boards]);
+
+  // Sync velocity board with filtered boards/project
+  useEffect(() => {
+    if (!selectedProject) {
+      setSelectedVelocityBoard(null);
+      setSelectedEngineers([]);
+      setTeamVelocityData([]);
+      setEngineerVelocityData([]);
+      return;
+    }
+
+    if (boards.length === 0) {
+      setSelectedVelocityBoard(null);
+      return;
+    }
+
+    if (selectedVelocityBoard && boards.some(b => b.id === selectedVelocityBoard.id)) {
+      return;
+    }
+
+    const defaultBoard = selectedBoard && boards.some(b => b.id === selectedBoard.id)
+      ? selectedBoard
+      : boards[0];
+    setSelectedVelocityBoard(defaultBoard);
+  }, [boards, selectedBoard, selectedProject, selectedVelocityBoard]);
 
   // Restore sprint selection
   useEffect(() => {
@@ -363,6 +405,63 @@ export default function DashboardPage() {
       setIssues(null);
       setIssuesByType(null);
       toast.dismiss(toastId);
+    }
+  };
+
+  const handleVelocityBoardSelect = (board: JiraBoard) => {
+    setSelectedVelocityBoard(board);
+    setSelectedEngineers([]);
+    setTeamVelocityData([]);
+    setEngineerVelocityData([]);
+  };
+
+  const fetchVelocityData = async () => {
+    if (!selectedVelocityBoard || !selectedProject) return;
+
+    setFetchingVelocity(true);
+    const toastId = toast.loading('Fetching velocity data...');
+
+    try {
+      let teamUrl = `/api/velocity/team?boardId=${selectedVelocityBoard.id}`;
+      if (timelineConfig.mode === 'date-range' && timelineConfig.startDate && timelineConfig.endDate) {
+        teamUrl += `&mode=date-range&startDate=${timelineConfig.startDate}&endDate=${timelineConfig.endDate}`;
+      } else {
+        teamUrl += `&mode=sprint-count&limit=${timelineConfig.sprintLimit || 20}`;
+      }
+
+      const teamRes = await fetch(teamUrl);
+      if (!teamRes.ok) {
+        throw new Error('Failed to fetch team velocity');
+      }
+      const teamData = await teamRes.json();
+      setTeamVelocityData(teamData.sprints || []);
+
+      if (selectedEngineers.length > 0) {
+        let engineerUrl = `/api/velocity/engineer?boardId=${selectedVelocityBoard.id}&assigneeIds=${selectedEngineers.map(e => e.accountId).join(',')}`;
+        if (timelineConfig.mode === 'date-range' && timelineConfig.startDate && timelineConfig.endDate) {
+          engineerUrl += `&mode=date-range&startDate=${timelineConfig.startDate}&endDate=${timelineConfig.endDate}`;
+        } else {
+          engineerUrl += `&mode=sprint-count&limit=${timelineConfig.sprintLimit || 20}`;
+        }
+
+        const engineerRes = await fetch(engineerUrl);
+        if (!engineerRes.ok) {
+          throw new Error('Failed to fetch engineer velocity');
+        }
+        const engineerData = await engineerRes.json();
+        setEngineerVelocityData(engineerData.sprints || []);
+      } else {
+        setEngineerVelocityData([]);
+      }
+
+      toast.success('Velocity data loaded successfully', { id: toastId });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch velocity data';
+      showError(errorMessage);
+      console.error('Error fetching velocity:', error);
+      toast.dismiss(toastId);
+    } finally {
+      setFetchingVelocity(false);
     }
   };
 
@@ -736,164 +835,274 @@ export default function DashboardPage() {
               />
             </div>
 
-            {/* Charts */}
-            <div className="grid gap-6 md:grid-cols-2 mb-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle>Cycle Time Trend</CardTitle>
-                  <button 
-                    className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
-                    onClick={() => handleMetricClick(issues?.cycleTime || [], 'Cycle Time - All Issues', true)}
-                  >
-                    View All
-                  </button>
-                </CardHeader>
-                <CardContent>
-                  <CycleTimeChart
-                    data={[
-                      { sprint: selectedSprints.length > 0 ? selectedSprints[0].name : 'Current', cycleTime: metrics.cycleTime.average },
-                    ]}
-                    issues={issues?.all}
-                    onIssueClick={(issues) => handleMetricClick(issues, 'Cycle Time Details', true)}
-                  />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle>Tech Debt Ratio Trend</CardTitle>
-                  <button 
-                    className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
-                    onClick={() => handleMetricClick([...(issues?.techDebt || []), ...(issues?.product || [])], 'Tech Debt Ratio - All Issues')}
-                  >
-                    View All
-                  </button>
-                </CardHeader>
-                <CardContent>
-                  <TechDebtChart
-                    data={[
-                      { sprint: selectedSprints.length > 0 ? selectedSprints[0].name : 'Current', techDebt: metrics.techDebtIssues, product: metrics.productIssues },
-                    ]}
-                    techIssues={issues?.techDebt}
-                    productIssues={issues?.product}
-                    onTechClick={(issues) => handleMetricClick(issues, 'Tech Debt Issues')}
-                    onProductClick={(issues) => handleMetricClick(issues, 'Product Issues')}
-                  />
-                </CardContent>
-              </Card>
+            <div className="flex items-center gap-2 border-b mb-6">
+              <button
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'overview'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setActiveTab('overview')}
+              >
+                Overview
+              </button>
+              <button
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'velocity'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setActiveTab('velocity')}
+              >
+                Velocity Analysis
+              </button>
             </div>
 
-            {/* Advanced Charts Section */}
-            {chartData && (
+            {activeTab === 'overview' && (
               <>
-                {/* Story Points by Assignee & Issue Type Breakdown */}
+                {/* Charts */}
                 <div className="grid gap-6 md:grid-cols-2 mb-6">
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle>Story Points by Assignee</CardTitle>
+                      <CardTitle>Cycle Time Trend</CardTitle>
                       <button 
                         className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
-                        onClick={() => handleMetricClick(issues?.all || [], 'Story Points by Assignee - All Issues')}
+                        onClick={() => handleMetricClick(issues?.cycleTime || [], 'Cycle Time - All Issues', true)}
                       >
                         View All
                       </button>
                     </CardHeader>
                     <CardContent>
-                      <AssigneeStoryPointsChart 
-                        data={chartData.storyPointsByAssignee || []} 
+                      <CycleTimeChart
+                        data={[
+                          { sprint: selectedSprints.length > 0 ? selectedSprints[0].name : 'Current', cycleTime: metrics.cycleTime.average },
+                        ]}
                         issues={issues?.all}
-                        onIssueClick={(issues) => handleMetricClick(issues, 'Assignee Issues')}
+                        onIssueClick={(issues) => handleMetricClick(issues, 'Cycle Time Details', true)}
                       />
                     </CardContent>
                   </Card>
 
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle>Bugs vs Stories vs Tasks</CardTitle>
+                      <CardTitle>Tech Debt Ratio Trend</CardTitle>
                       <button 
                         className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
-                        onClick={() => handleMetricClick(issues?.all || [], 'Bugs vs Stories - All Issues')}
+                        onClick={() => handleMetricClick([...(issues?.techDebt || []), ...(issues?.product || [])], 'Tech Debt Ratio - All Issues')}
                       >
                         View All
                       </button>
                     </CardHeader>
                     <CardContent>
-                      <BugsVsStoriesChart
-                        data={chartData.issueTypeBreakdown || { bugs: 0, stories: 0, tasks: 0, other: 0, total: 0 }}
-                        issues={issuesByType}
-                        onIssueTypeClick={handleMetricClick}
+                      <TechDebtChart
+                        data={[
+                          { sprint: selectedSprints.length > 0 ? selectedSprints[0].name : 'Current', techDebt: metrics.techDebtIssues, product: metrics.productIssues },
+                        ]}
+                        techIssues={issues?.techDebt}
+                        productIssues={issues?.product}
+                        onTechClick={(issues) => handleMetricClick(issues, 'Tech Debt Issues')}
+                        onProductClick={(issues) => handleMetricClick(issues, 'Product Issues')}
                       />
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* Bugs Trend */}
-                <Card className="mb-6">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle>Bugs Trend</CardTitle>
-                    <button 
-                      className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
-                      onClick={() => handleMetricClick(issues?.bugs || [], 'Bugs - All Issues')}
-                    >
-                      View All
-                    </button>
-                  </CardHeader>
-                  <CardContent>
-                    <BugsTrendChart 
-                      data={chartData.bugsTrend || []} 
-                      issues={issues?.bugs}
-                      onIssueClick={(issues) => handleMetricClick(issues, 'Bugs for Selected Date')}
-                    />
-                  </CardContent>
-                </Card>
+                {/* Advanced Charts Section */}
+                {chartData && (
+                  <>
+                    {/* Story Points by Assignee & Issue Type Breakdown */}
+                    <div className="grid gap-6 md:grid-cols-2 mb-6">
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle>Story Points by Assignee</CardTitle>
+                          <button 
+                            className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
+                            onClick={() => handleMetricClick(issues?.all || [], 'Story Points by Assignee - All Issues')}
+                          >
+                            View All
+                          </button>
+                        </CardHeader>
+                        <CardContent>
+                          <AssigneeStoryPointsChart 
+                            data={chartData.storyPointsByAssignee || []} 
+                            issues={issues?.all}
+                            onIssueClick={(issues) => handleMetricClick(issues, 'Assignee Issues')}
+                          />
+                        </CardContent>
+                      </Card>
 
-                {/* Workload Distribution & Issue Aging */}
-                <div className="grid gap-6 md:grid-cols-2 mb-6">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle>Workload Distribution</CardTitle>
-                      <button 
-                        className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
-                        onClick={() => handleMetricClick(issues?.all || [], 'Workload Distribution - All Issues')}
-                      >
-                        View All
-                      </button>
-                    </CardHeader>
-                    <CardContent>
-                      <WorkloadDistributionChart 
-                        data={chartData.workloadDistribution || []} 
-                        issues={issues?.all}
-                        onIssueClick={(issues) => handleMetricClick(issues, 'Workload Details')}
-                      />
-                    </CardContent>
-                  </Card>
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle>Bugs vs Stories vs Tasks</CardTitle>
+                          <button 
+                            className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
+                            onClick={() => handleMetricClick(issues?.all || [], 'Bugs vs Stories - All Issues')}
+                          >
+                            View All
+                          </button>
+                        </CardHeader>
+                        <CardContent>
+                          <BugsVsStoriesChart
+                            data={chartData.issueTypeBreakdown || { bugs: 0, stories: 0, tasks: 0, other: 0, total: 0 }}
+                            issues={issuesByType}
+                            onIssueTypeClick={handleMetricClick}
+                          />
+                        </CardContent>
+                      </Card>
+                    </div>
 
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle>Issue Aging</CardTitle>
-                      <button 
-                        className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
-                        onClick={() => handleMetricClick(
-                          (issues?.all || []).filter((issue: JiraIssue) => 
-                            issue.fields.status?.statusCategory?.key !== 'done'
-                          ), 
-                          'Issue Aging - All Open Issues',
-                          true
-                        )}
-                      >
-                        View All
-                      </button>
-                    </CardHeader>
-                    <CardContent>
-                      <IssueAgingChart 
-                        data={chartData.issueAging || []} 
-                        issues={issues?.all}
-                        onIssueClick={(issues) => handleMetricClick(issues, 'Aging Issues', true)}
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
+                    {/* Bugs Trend */}
+                    <Card className="mb-6">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle>Bugs Trend</CardTitle>
+                        <button 
+                          className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
+                          onClick={() => handleMetricClick(issues?.bugs || [], 'Bugs - All Issues')}
+                        >
+                          View All
+                        </button>
+                      </CardHeader>
+                      <CardContent>
+                        <BugsTrendChart 
+                          data={chartData.bugsTrend || []} 
+                          issues={issues?.bugs}
+                          onIssueClick={(issues) => handleMetricClick(issues, 'Bugs for Selected Date')}
+                        />
+                      </CardContent>
+                    </Card>
+
+                    {/* Workload Distribution & Issue Aging */}
+                    <div className="grid gap-6 md:grid-cols-2 mb-6">
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle>Workload Distribution</CardTitle>
+                          <button 
+                            className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
+                            onClick={() => handleMetricClick(issues?.all || [], 'Workload Distribution - All Issues')}
+                          >
+                            View All
+                          </button>
+                        </CardHeader>
+                        <CardContent>
+                          <WorkloadDistributionChart 
+                            data={chartData.workloadDistribution || []} 
+                            issues={issues?.all}
+                            onIssueClick={(issues) => handleMetricClick(issues, 'Workload Details')}
+                          />
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle>Issue Aging</CardTitle>
+                          <button 
+                            className="text-sm text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
+                            onClick={() => handleMetricClick(
+                              (issues?.all || []).filter((issue: JiraIssue) => 
+                                issue.fields.status?.statusCategory?.key !== 'done'
+                              ), 
+                              'Issue Aging - All Open Issues',
+                              true
+                            )}
+                          >
+                            View All
+                          </button>
+                        </CardHeader>
+                        <CardContent>
+                          <IssueAgingChart 
+                            data={chartData.issueAging || []} 
+                            issues={issues?.all}
+                            onIssueClick={(issues) => handleMetricClick(issues, 'Aging Issues', true)}
+                          />
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </>
+                )}
               </>
+            )}
+
+            {activeTab === 'velocity' && (
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="lg:col-span-1">
+                  <Card className="sticky top-24">
+                    <CardHeader>
+                      <CardTitle className="text-lg">Velocity Filters</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="text-sm text-muted-foreground">
+                        Project: <span className="text-foreground font-medium">
+                          {selectedProject ? `${selectedProject.name} (${selectedProject.key})` : 'None selected'}
+                        </span>
+                      </div>
+                      <VelocityFilters
+                        boards={boards}
+                        selectedBoard={selectedVelocityBoard}
+                        onBoardSelect={handleVelocityBoardSelect}
+                        selectedEngineers={selectedEngineers}
+                        onEngineersSelect={setSelectedEngineers}
+                        timelineConfig={timelineConfig}
+                        onTimelineConfigChange={setTimelineConfig}
+                        onApply={fetchVelocityData}
+                        loading={fetchingVelocity}
+                        boardDisabled={!selectedProject}
+                        boardDisabledMessage="Select a project in Filter Options to enable board selection."
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="lg:col-span-3 space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Team Velocity Over Sprints</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {teamVelocityData.length > 0 ? (
+                        <TeamVelocityChart
+                          data={teamVelocityData}
+                          onSprintClick={(issues, sprintName) =>
+                            handleMetricClick(issues, `Sprint: ${sprintName}`, true)
+                          }
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-64 text-muted-foreground">
+                          <div className="text-center">
+                            <p className="text-lg mb-2">📊 No data</p>
+                            <p className="text-sm">
+                              Select a board and apply filters to see velocity data
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {selectedEngineers.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Individual Engineer Velocity</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {engineerVelocityData.length > 0 ? (
+                          <EngineerVelocityChart
+                            data={engineerVelocityData}
+                            onEngineerDataClick={(issues, engineerName, sprintName) =>
+                              handleMetricClick(issues, `${engineerName} - ${sprintName}`, true)
+                            }
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-64 text-muted-foreground">
+                            <div className="text-center">
+                              <p className="text-lg mb-2">📈 Loading engineer data...</p>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
             )}
           </>
         )}

@@ -30,6 +30,14 @@ export async function GET(request: NextRequest) {
       connection.credentials
     );
 
+    const board = await client.getBoard(parseInt(boardId));
+    if (board.type?.toLowerCase() !== 'scrum') {
+      return NextResponse.json({
+        sprints: [],
+        message: 'Board does not support sprints (scrum boards only)',
+      });
+    }
+
     const sprints = await client.getSprints(parseInt(boardId));
 
     return NextResponse.json({ sprints });

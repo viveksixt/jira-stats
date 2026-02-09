@@ -82,6 +82,11 @@ export class JiraClient {
     return result.values;
   }
 
+  // Get board by ID
+  async getBoard(boardId: number): Promise<JiraBoard> {
+    return this.request<JiraBoard>(`/rest/agile/1.0/board/${boardId}`);
+  }
+
   // Get boards for a specific project
   async getBoardsForProject(projectKey: string, type?: string): Promise<JiraBoard[]> {
     const params = new URLSearchParams();

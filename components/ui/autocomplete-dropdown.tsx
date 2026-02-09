@@ -16,6 +16,7 @@ export interface AutocompleteDropdownProps<T> {
   searchKeys?: (item: T) => string[];
   className?: string;
   maxResults?: number;
+  disabled?: boolean;
 }
 
 export function AutocompleteDropdown<T>({
@@ -30,6 +31,7 @@ export function AutocompleteDropdown<T>({
   searchKeys,
   className = '',
   maxResults = 10,
+  disabled = false,
 }: AutocompleteDropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -60,6 +62,7 @@ export function AutocompleteDropdown<T>({
 
   // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     setSearchTerm(e.target.value);
     if (!isOpen) {
       setIsOpen(true);
@@ -69,21 +72,24 @@ export function AutocompleteDropdown<T>({
   
   // Handle input focus
   const handleInputFocus = () => {
+    if (disabled) return;
     setIsOpen(true);
     setSearchTerm('');
   };
 
   // Handle item selection
   const handleSelect = useCallback((item: T) => {
+    if (disabled) return;
     onSelect(item);
     setSearchTerm('');
     setIsOpen(false);
     setHighlightedIndex(-1);
     inputRef.current?.blur();
-  }, [onSelect]);
+  }, [onSelect, disabled]);
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (disabled) return;
     if (!isOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) {
       setIsOpen(true);
       return;
@@ -163,6 +169,7 @@ export function AutocompleteDropdown<T>({
           onFocus={handleInputFocus}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
+          disabled={disabled}
           aria-autocomplete="list"
           aria-expanded={isOpen}
           aria-haspopup="listbox"

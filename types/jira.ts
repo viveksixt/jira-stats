@@ -160,3 +160,43 @@ export interface SprintMetrics {
   velocity: number;
   component?: string;
 }
+
+// Velocity Tracking Types
+
+export interface VelocitySprintData {
+  sprintId: number;
+  sprintName: string;
+  completeDate: string;
+  velocity: number;
+  completedIssueCount: number;
+  issues: JiraIssue[];
+}
+
+export interface AssigneeVelocityData {
+  accountId: string;
+  displayName: string;
+  velocity: number;
+  issueCount: number;
+  issues: JiraIssue[];
+}
+
+export interface EngineerVelocityData {
+  sprintId: number;
+  sprintName: string;
+  completeDate: string;
+  assignees: AssigneeVelocityData[];
+}
+
+export interface VelocityTimelineConfig {
+  mode: 'sprint-count' | 'date-range';
+  sprintLimit?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface VelocityEngineer {
+  accountId: string;
+  displayName: string;
+  emailAddress?: string;
+  totalIssueCount: number;
+}

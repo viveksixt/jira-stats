@@ -1,4 +1,4 @@
-import type { JiraIssue } from '@/types/jira';
+import type { JiraIssue, JiraSprint } from '@/types/jira';
 
 // Extract story points from an issue
 export function getStoryPoints(issue: JiraIssue): number {
@@ -37,4 +37,36 @@ export function calculateVelocity(issues: JiraIssue[]): number {
   }, 0);
 
   return totalPoints;
+}
+
+// Calculate velocity for a specific assignee
+export function calculateAssigneeVelocity(issues: JiraIssue[], accountId: string): number {
+  const assigneeIssues = issues.filter(issue => 
+    issue.fields.assignee?.accountId === accountId
+  );
+  return calculateVelocity(assigneeIssues);
+}
+
+// Get last N closed sprints
+export function getLastNClosedSprints(sprints: JiraSprint[], n: number): JiraSprint[] {
+  const closedSprints = sprints.filter(s => s.state === 'closed');
+  
+  // Sort by completeDate descending (newest first)
+  const sorted = closedSprints.sort((a, b) => {
+    const dateA = a.completeDate ? new Date(a.completeDate).getTime() : 0;
+    const dateB = b.completeDate ? new Date(b.completeDate).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  return sorted.slice(0, n);
+}
+
+// Filter sprints by date range
+export function filterSprintsByDateRange(sprints: JiraSprint[], startDate: Date, endDate: Date): JiraSprint[] {
+  return sprints.filter(sprint => {
+    if (!sprint.completeDate) return false;
+    
+    const sprintDate = new Date(sprint.completeDate);
+    return sprintDate >= startDate && sprintDate <= endDate;
+  });
 }

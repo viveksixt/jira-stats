@@ -7,9 +7,10 @@ interface BoardSelectorProps {
   boards: JiraBoard[];
   selectedBoard: JiraBoard | null;
   onSelect: (board: JiraBoard) => void;
+  disabled?: boolean;
 }
 
-export function BoardSelector({ boards, selectedBoard, onSelect }: BoardSelectorProps) {
+export function BoardSelector({ boards, selectedBoard, onSelect, disabled = false }: BoardSelectorProps) {
   const getBoardLabel = (board: JiraBoard): string => {
     return board.name;
   };
@@ -34,6 +35,7 @@ export function BoardSelector({ boards, selectedBoard, onSelect }: BoardSelector
       placeholder="Search boards..."
       className="w-full"
       maxResults={10}
+      disabled={disabled}
     />
   );
 }
