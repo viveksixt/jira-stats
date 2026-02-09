@@ -54,6 +54,7 @@ interface FilterModalProps {
   // Modal control
   onClose?: () => void;
   onLoadPreset?: (preset: FilterPreset) => void;
+  presetLoading?: boolean;
 }
 
 export function FilterModal({
@@ -79,6 +80,7 @@ export function FilterModal({
   jqlLoading = false,
   onClose,
   onLoadPreset,
+  presetLoading = false,
 }: FilterModalProps) {
   const hasActiveFilters = selectedProject || selectedBoard || selectedSprints.length > 0 || techEpicKeys.length > 0;
   const [presets, setPresets] = useState<FilterPreset[]>([]);
@@ -219,6 +221,7 @@ export function FilterModal({
         getProjectName(preset.projectKey).toLowerCase().includes(query) ||
         getBoardName(preset.boardId).toLowerCase().includes(query) ||
         getSprintNames(preset.sprintIds).toLowerCase().includes(query) ||
+        (preset.techEpicKeys && preset.techEpicKeys.join(', ').toLowerCase().includes(query)) ||
         (preset.techLabels && preset.techLabels.join(', ').toLowerCase().includes(query)) ||
         (preset.ignoreIssueKeys && preset.ignoreIssueKeys.join(', ').toLowerCase().includes(query))
       );
@@ -493,6 +496,14 @@ export function FilterModal({
                     </th>
                     <th 
                       className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted/80 select-none"
+                      onClick={() => handleSort('techEpicKeys')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Tech Epics {getSortIcon('techEpicKeys')}
+                      </div>
+                    </th>
+                    <th 
+                      className="text-left p-3 text-sm font-medium cursor-pointer hover:bg-muted/80 select-none"
                       onClick={() => handleSort('techLabels')}
                     >
                       <div className="flex items-center gap-1">
@@ -521,7 +532,7 @@ export function FilterModal({
                 <tbody className="divide-y">
                   {filteredAndSortedPresets.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-sm text-muted-foreground">
+                      <td colSpan={9} className="p-8 text-center text-sm text-muted-foreground">
                         {searchQuery ? 'No presets match your search' : 'No presets found'}
                       </td>
                     </tr>
@@ -529,8 +540,8 @@ export function FilterModal({
                     filteredAndSortedPresets.map((preset) => (
                     <tr
                       key={preset.id}
-                      className="hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => handleLoadPreset(preset)}
+                      className={`transition-colors ${presetLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-muted/50 cursor-pointer'}`}
+                      onClick={() => !presetLoading && handleLoadPreset(preset)}
                     >
                       <td className="p-3 text-sm font-medium">
                         {editingPresetId === preset.id ? (
@@ -589,6 +600,7 @@ export function FilterModal({
                                 setEditingName(preset.name);
                               }}
                               title="Edit name"
+                              disabled={presetLoading}
                             >
                               ✏️
                             </Button>
@@ -598,6 +610,11 @@ export function FilterModal({
                       <td className="p-3 text-sm">{getProjectName(preset.projectKey)}</td>
                       <td className="p-3 text-sm">{getBoardName(preset.boardId)}</td>
                       <td className="p-3 text-sm">{getSprintNames(preset.sprintIds)}</td>
+                      <td className="p-3 text-sm">
+                        {preset.techEpicKeys && preset.techEpicKeys.length > 0 
+                          ? preset.techEpicKeys.join(', ') 
+                          : '-'}
+                      </td>
                       <td className="p-3 text-sm">
                         {preset.techLabels && preset.techLabels.length > 0 
                           ? preset.techLabels.join(', ') 
@@ -618,6 +635,7 @@ export function FilterModal({
                           onClick={(e) => handleDeletePreset(e, preset.id)}
                           className="h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground"
                           title="Delete preset"
+                          disabled={presetLoading}
                         >
                           ⊘
                         </Button>

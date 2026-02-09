@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { ClickableMetricCard } from '@/components/dashboard/ClickableMetricCard';
@@ -96,6 +96,10 @@ export default function DashboardPage() {
   const [issues, setIssues] = useState<any>(null);
   const [issuesByType, setIssuesByType] = useState<any>(null);
 
+  // Preset loading state
+  const [presetLoading, setPresetLoading] = useState(false);
+  const isLoadingPresetRef = useRef(false);
+
   // Issue Details Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
@@ -151,26 +155,24 @@ export default function DashboardPage() {
 
   // Restore board selection
   useEffect(() => {
-    if (boards.length > 0) {
-      const savedBoardId = localStorage.getItem(preferenceKeys.board);
-      if (savedBoardId) {
-        const found = boards.find(b => b.id === parseInt(savedBoardId));
-        if (found) {
-          setSelectedBoard(found);
-        }
+    if (isLoadingPresetRef.current || boards.length === 0) return;
+    const savedBoardId = localStorage.getItem(preferenceKeys.board);
+    if (savedBoardId) {
+      const found = boards.find(b => b.id === parseInt(savedBoardId));
+      if (found) {
+        setSelectedBoard(found);
       }
     }
   }, [boards]);
 
   // Restore sprint selection
   useEffect(() => {
-    if (sprints.length > 0) {
-      const savedSprintId = localStorage.getItem(preferenceKeys.sprint);
-      if (savedSprintId) {
-        const found = sprints.find(s => s.id === parseInt(savedSprintId));
-        if (found) {
-          setSelectedSprints([found]);
-        }
+    if (isLoadingPresetRef.current || sprints.length === 0) return;
+    const savedSprintId = localStorage.getItem(preferenceKeys.sprint);
+    if (savedSprintId) {
+      const found = sprints.find(s => s.id === parseInt(savedSprintId));
+      if (found) {
+        setSelectedSprints([found]);
       }
     }
   }, [sprints]);
@@ -196,19 +198,21 @@ export default function DashboardPage() {
     }
   };
 
-  const loadBoards = async (projectKey?: string) => {
+  const loadBoards = async (projectKey?: string): Promise<JiraBoard[]> => {
     const cacheKey = projectKey ? cacheKeys.boardsByProject(projectKey) : cacheKeys.boards;
     const cachedBoards = cache.get<JiraBoard[]>(cacheKey);
     if (cachedBoards) {
       setBoards(cachedBoards);
-      if (cachedBoards.length > 0) {
+      if (cachedBoards.length > 0 && !isLoadingPresetRef.current) {
         setSelectedBoard(cachedBoards[0]);
       }
-      showSuccess('Boards loaded from cache');
-      return;
+      if (!isLoadingPresetRef.current) {
+        showSuccess('Boards loaded from cache');
+      }
+      return cachedBoards;
     }
 
-    const toastId = toast.loading('Loading boards...');
+    const toastId = !isLoadingPresetRef.current ? toast.loading('Loading boards...') : undefined;
     try {
       const url = projectKey
         ? `/api/boards?projectKeyOrId=${projectKey}`
@@ -219,19 +223,28 @@ export default function DashboardPage() {
         throw new Error(error.error || 'Failed to load boards');
       }
       const data = await res.json();
-      setBoards(data.boards || []);
-      cache.set(cacheKey, data.boards || [], 600000);
-      if (data.boards && data.boards.length > 0) {
-        setSelectedBoard(data.boards[0]);
+      const boards = data.boards || [];
+      setBoards(boards);
+      cache.set(cacheKey, boards, 600000);
+      if (boards.length > 0 && !isLoadingPresetRef.current) {
+        setSelectedBoard(boards[0]);
       }
-      toast.success('Boards loaded successfully', { id: toastId });
+      if (toastId) {
+        toast.success('Boards loaded successfully', { id: toastId });
+      }
+      return boards;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load boards';
-      showError(errorMessage);
+      if (!isLoadingPresetRef.current) {
+        showError(errorMessage);
+      }
       console.error('Failed to load boards:', error);
-      toast.dismiss(toastId);
+      if (toastId) {
+        toast.dismiss(toastId);
+      }
       setBoards([]);
       setSelectedBoard(null);
+      throw error;
     }
   };
 
@@ -249,27 +262,27 @@ export default function DashboardPage() {
 
   // Load sprints when board changes
   useEffect(() => {
-    if (selectedBoard) {
-      loadSprints(selectedBoard.id);
-      localStorage.setItem(preferenceKeys.board, selectedBoard.id.toString());
-      // Clear tech epic selection when board changes
-      setTechEpicKeys([]);
-      localStorage.removeItem(preferenceKeys.techEpicKeys);
-    }
+    if (isLoadingPresetRef.current || !selectedBoard) return;
+    
+    loadSprints(selectedBoard.id);
+    localStorage.setItem(preferenceKeys.board, selectedBoard.id.toString());
+    // Clear tech epic selection when board changes
+    setTechEpicKeys([]);
+    localStorage.removeItem(preferenceKeys.techEpicKeys);
   }, [selectedBoard]);
 
-  const loadSprints = async (boardId: number) => {
+  const loadSprints = async (boardId: number): Promise<JiraSprint[]> => {
     const cachedSprints = cache.get<JiraSprint[]>(cacheKeys.sprints(boardId));
     if (cachedSprints) {
       const closedSprints = cachedSprints.filter((s) => s.state === 'closed');
       setSprints(closedSprints);
-      if (closedSprints.length > 0) {
+      if (closedSprints.length > 0 && !isLoadingPresetRef.current) {
         setSelectedSprints([closedSprints[closedSprints.length - 1]]);
       }
-      return;
+      return closedSprints;
     }
 
-    const toastId = toast.loading('Loading sprints...');
+    const toastId = !isLoadingPresetRef.current ? toast.loading('Loading sprints...') : undefined;
     try {
       const res = await fetch(`/api/sprints?boardId=${boardId}`);
       if (!res.ok) {
@@ -280,16 +293,24 @@ export default function DashboardPage() {
       const closedSprints = (data.sprints || []).filter((s: JiraSprint) => s.state === 'closed');
       setSprints(closedSprints);
       cache.set(cacheKeys.sprints(boardId), data.sprints || [], 600000);
-      if (closedSprints.length > 0) {
+      if (closedSprints.length > 0 && !isLoadingPresetRef.current) {
         setSelectedSprints([closedSprints[closedSprints.length - 1]]);
       }
-      toast.success(`Loaded ${closedSprints.length} closed sprints`, { id: toastId });
+      if (toastId) {
+        toast.success(`Loaded ${closedSprints.length} closed sprints`, { id: toastId });
+      }
+      return closedSprints;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load sprints';
-      showError(errorMessage);
+      if (!isLoadingPresetRef.current) {
+        showError(errorMessage);
+      }
       console.error('Failed to load sprints:', error);
+      if (toastId) {
+        toast.dismiss(toastId);
+      }
       setSprints([]);
-      toast.dismiss(toastId);
+      throw error;
     }
   };
 
@@ -403,50 +424,121 @@ export default function DashboardPage() {
   };
 
   // Handle loading a preset
-  const handleLoadPreset = (preset: FilterPreset) => {
-    // Load project
-    if (preset.projectKey) {
-      const foundProject = projects.find(p => p.key === preset.projectKey);
-      if (foundProject) {
+  const handleLoadPreset = async (preset: FilterPreset) => {
+    isLoadingPresetRef.current = true;
+    setPresetLoading(true);
+    const toastId = toast.loading('Applying preset...');
+    
+    try {
+      // Step 1: Load and set project
+      if (!preset.projectKey) {
+        setSelectedProject(null);
+      } else {
+        const foundProject = projects.find(p => p.key === preset.projectKey);
+        if (!foundProject) {
+          const errorMsg = `Project "${preset.projectKey}" not found. Preset could not be fully applied.`;
+          toast.dismiss(toastId);
+          showError(errorMsg);
+          isLoadingPresetRef.current = false;
+          setPresetLoading(false);
+          return;
+        }
         setSelectedProject(foundProject);
-        loadBoards(foundProject.key);
       }
-    } else {
-      setSelectedProject(null);
-    }
 
-    // Load board
-    if (preset.boardId) {
-      const foundBoard = boards.find(b => b.id === preset.boardId);
-      if (foundBoard) {
-        setSelectedBoard(foundBoard);
+      // Step 2: Load and set board
+      if (!preset.boardId) {
+        setSelectedBoard(null);
+      } else {
+        try {
+          const fetchedBoards = await loadBoards(preset.projectKey || undefined);
+          const foundBoard = fetchedBoards.find(b => b.id === preset.boardId);
+          if (!foundBoard) {
+            const errorMsg = `Board ID ${preset.boardId} not found. Preset could not be fully applied.`;
+            toast.dismiss(toastId);
+            showError(errorMsg);
+            isLoadingPresetRef.current = false;
+            setPresetLoading(false);
+            return;
+          }
+          setSelectedBoard(foundBoard);
+        } catch (error) {
+          const errorMsg = `Failed to load boards for project ${preset.projectKey}. Preset could not be fully applied.`;
+          toast.dismiss(toastId);
+          showError(errorMsg);
+          console.error('Error loading boards for preset:', error);
+          isLoadingPresetRef.current = false;
+          setPresetLoading(false);
+          return;
+        }
       }
-    } else {
-      setSelectedBoard(null);
-    }
 
-    // Load sprints
-    if (preset.sprintIds.length > 0) {
-      const foundSprints = sprints.filter(s => preset.sprintIds.includes(s.id));
-      setSelectedSprints(foundSprints);
-    } else {
-      setSelectedSprints([]);
-    }
+      // Step 3: Load and set sprints
+      if (preset.sprintIds.length > 0 && preset.boardId) {
+        try {
+          const fetchedSprints = await loadSprints(preset.boardId);
+          const foundSprints = fetchedSprints.filter(s => preset.sprintIds.includes(s.id));
+          const missingSprintIds = preset.sprintIds.filter(id => !foundSprints.find(s => s.id === id));
+          
+          if (missingSprintIds.length > 0) {
+            console.warn(`Some sprints from the preset were not found: ${missingSprintIds.join(', ')}`);
+          }
+          
+          setSelectedSprints(foundSprints);
+        } catch (error) {
+          const errorMsg = `Failed to load sprints for board ${preset.boardId}. Preset could not be fully applied.`;
+          toast.dismiss(toastId);
+          showError(errorMsg);
+          console.error('Error loading sprints for preset:', error);
+          isLoadingPresetRef.current = false;
+          setPresetLoading(false);
+          return;
+        }
+      } else {
+        setSelectedSprints([]);
+      }
 
-    // Load tech epic keys
-    setTechEpicKeys(preset.techEpicKeys);
-    localStorage.setItem(preferenceKeys.techEpicKeys, JSON.stringify(preset.techEpicKeys));
+      // Step 4: Save to localStorage and set remaining fields
+      if (preset.projectKey) {
+        localStorage.setItem(preferenceKeys.project, preset.projectKey);
+      } else {
+        localStorage.removeItem(preferenceKeys.project);
+      }
 
-    // Load tech labels
-    if (preset.techLabels && preset.techLabels.length > 0) {
-      setTechLabels(preset.techLabels);
-      localStorage.setItem(preferenceKeys.techLabels, JSON.stringify(preset.techLabels));
-    }
+      if (preset.boardId) {
+        localStorage.setItem(preferenceKeys.board, preset.boardId.toString());
+      } else {
+        localStorage.removeItem(preferenceKeys.board);
+      }
 
-    // Load ignore keys
-    if (preset.ignoreIssueKeys && preset.ignoreIssueKeys.length > 0) {
-      setIgnoreIssueKeys(preset.ignoreIssueKeys);
-      localStorage.setItem(preferenceKeys.ignoreIssueKeys, JSON.stringify(preset.ignoreIssueKeys));
+      if (preset.sprintIds.length > 0) {
+        localStorage.setItem(preferenceKeys.sprint, JSON.stringify(preset.sprintIds[0]));
+      } else {
+        localStorage.removeItem(preferenceKeys.sprint);
+      }
+
+      setTechEpicKeys(preset.techEpicKeys);
+      localStorage.setItem(preferenceKeys.techEpicKeys, JSON.stringify(preset.techEpicKeys));
+
+      if (preset.techLabels && preset.techLabels.length > 0) {
+        setTechLabels(preset.techLabels);
+        localStorage.setItem(preferenceKeys.techLabels, JSON.stringify(preset.techLabels));
+      }
+
+      if (preset.ignoreIssueKeys && preset.ignoreIssueKeys.length > 0) {
+        setIgnoreIssueKeys(preset.ignoreIssueKeys);
+        localStorage.setItem(preferenceKeys.ignoreIssueKeys, JSON.stringify(preset.ignoreIssueKeys));
+      }
+
+      // Success
+      toast.success('Preset applied successfully!', { id: toastId });
+    } finally {
+      // Defer clearing to after React effects have processed the state updates
+      // This ensures the ref stays true during the render + effect cycle
+      setTimeout(() => {
+        isLoadingPresetRef.current = false;
+        setPresetLoading(false);
+      }, 0);
     }
   };
 
@@ -556,6 +648,7 @@ export default function DashboardPage() {
                 onJQLExecute={handleJQLExecute}
                 jqlLoading={jqlLoading}
                 onLoadPreset={handleLoadPreset}
+                presetLoading={presetLoading}
               />
               <div title="Connected to Jira" className="relative group">
                 <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>

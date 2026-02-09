@@ -34,6 +34,7 @@ interface FilterIconProps {
   onJQLExecute: (jql: string) => Promise<void>;
   jqlLoading?: boolean;
   onLoadPreset?: (preset: FilterPreset) => void;
+  presetLoading?: boolean;
 }
 
 export function FilterIcon({
@@ -58,6 +59,7 @@ export function FilterIcon({
   onJQLExecute,
   jqlLoading = false,
   onLoadPreset,
+  presetLoading = false,
 }: FilterIconProps) {
   const [open, setOpen] = useState(false);
 
@@ -109,6 +111,7 @@ export function FilterIcon({
             jqlLoading={jqlLoading}
             onClose={() => setOpen(false)}
             onLoadPreset={onLoadPreset}
+            presetLoading={presetLoading}
           />
         </DialogContent>
       </Dialog>
