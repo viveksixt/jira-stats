@@ -14,12 +14,17 @@ interface ChartDetailsModalProps {
   showAge?: boolean;
 }
 
-function calculateAge(issue: JiraIssue): number {
+function calculateAge(issue: JiraIssue): number | null {
+  if (!issue.fields.created) return null;
   const created = new Date(issue.fields.created);
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - created.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
+  if (Number.isNaN(created.getTime())) return null;
+  // For resolved issues, age is measured at resolution time so the number stays stable.
+  // For open issues, measure against today.
+  const end = issue.fields.resolutiondate
+    ? new Date(issue.fields.resolutiondate)
+    : new Date();
+  if (Number.isNaN(end.getTime())) return null;
+  return Math.ceil(Math.abs(end.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function isTechIssue(issue: JiraIssue, techLabels?: string[]): boolean {
@@ -106,7 +111,7 @@ export function ChartDetailsModal({
         compareValue = getStoryPoints(a) - getStoryPoints(b);
         break;
       case 'age':
-        compareValue = calculateAge(a) - calculateAge(b);
+        compareValue = (calculateAge(a) ?? -1) - (calculateAge(b) ?? -1);
         break;
     }
     
@@ -299,7 +304,7 @@ export function ChartDetailsModal({
                       </td>
                       {showAge && (
                         <td className="p-3 text-sm">
-                          {calculateAge(issue)}
+                          {calculateAge(issue) ?? '—'}
                         </td>
                       )}
                     </tr>

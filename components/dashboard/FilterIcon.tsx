@@ -91,6 +91,7 @@ export function FilterIcon({
           <FilterModal
             queryMode={queryMode}
             onQueryModeChange={onQueryModeChange}
+            isOpen={open}
             projects={projects}
             selectedProject={selectedProject}
             onProjectSelect={onProjectSelect}

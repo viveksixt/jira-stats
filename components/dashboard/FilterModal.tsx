@@ -20,6 +20,7 @@ interface FilterModalProps {
   // Mode
   queryMode: QueryMode;
   onQueryModeChange: (mode: QueryMode) => void;
+  isOpen: boolean;
 
   // Board Mode Filters
   projects: JiraProject[];
@@ -60,6 +61,7 @@ interface FilterModalProps {
 export function FilterModal({
   queryMode,
   onQueryModeChange,
+  isOpen,
   projects,
   selectedProject,
   onProjectSelect,
@@ -82,7 +84,20 @@ export function FilterModal({
   onLoadPreset,
   presetLoading = false,
 }: FilterModalProps) {
-  const hasActiveFilters = selectedProject || selectedBoard || selectedSprints.length > 0 || techEpicKeys.length > 0;
+  // Draft state (do not affect overview metrics until Apply)
+  const [draftQueryMode, setDraftQueryMode] = useState<QueryMode>(queryMode);
+  const [draftProject, setDraftProject] = useState<JiraProject | null>(selectedProject);
+  const [draftBoards, setDraftBoards] = useState<JiraBoard[]>(boards);
+  const [draftBoard, setDraftBoard] = useState<JiraBoard | null>(selectedBoard);
+  const [draftSprintsList, setDraftSprintsList] = useState<JiraSprint[]>(sprints);
+  const [draftSprints, setDraftSprints] = useState<JiraSprint[]>(selectedSprints);
+  const [draftTechEpicKeys, setDraftTechEpicKeys] = useState<string[]>(techEpicKeys);
+  const [draftTechLabels, setDraftTechLabels] = useState<string[]>(techLabels);
+  const [draftIgnoreIssueKeys, setDraftIgnoreIssueKeys] = useState<string[]>(ignoreIssueKeys);
+
+  const hasActiveFilters =
+    draftProject || draftBoard || draftSprints.length > 0 || draftTechEpicKeys.length > 0;
+
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
@@ -92,8 +107,8 @@ export function FilterModal({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   // Ensure tech labels and ignore keys are arrays
-  const safeTechLabels = Array.isArray(techLabels) ? techLabels : DEFAULT_TECH_LABELS;
-  const safeIgnoreKeys = Array.isArray(ignoreIssueKeys) ? ignoreIssueKeys : [];
+  const safeTechLabels = Array.isArray(draftTechLabels) ? draftTechLabels : DEFAULT_TECH_LABELS;
+  const safeIgnoreKeys = Array.isArray(draftIgnoreIssueKeys) ? draftIgnoreIssueKeys : [];
   const [labelsInput, setLabelsInput] = useState(safeTechLabels.join(', '));
   const [ignoreKeysInput, setIgnoreKeysInput] = useState(safeIgnoreKeys.join(', '));
 
@@ -105,6 +120,20 @@ export function FilterModal({
   useEffect(() => {
     setIgnoreKeysInput(safeIgnoreKeys.join(', '));
   }, [safeIgnoreKeys]);
+
+  // Reset drafts when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    setDraftQueryMode(queryMode);
+    setDraftProject(selectedProject);
+    setDraftBoards(boards);
+    setDraftBoard(selectedBoard);
+    setDraftSprintsList(sprints);
+    setDraftSprints(selectedSprints);
+    setDraftTechEpicKeys(techEpicKeys);
+    setDraftTechLabels(techLabels);
+    setDraftIgnoreIssueKeys(ignoreIssueKeys);
+  }, [isOpen, queryMode, selectedProject, boards, selectedBoard, sprints, selectedSprints, techEpicKeys, techLabels, ignoreIssueKeys]);
 
   useEffect(() => {
     setPresets(getPresets());
@@ -130,11 +159,11 @@ export function FilterModal({
     try {
       const preset = savePreset({
         name: generatePresetName(),
-        queryMode,
-        projectKey: selectedProject?.key || null,
-        boardId: selectedBoard?.id || null,
-        sprintIds: selectedSprints.map(s => s.id),
-        techEpicKeys,
+        queryMode: draftQueryMode,
+        projectKey: draftProject?.key || null,
+        boardId: draftBoard?.id || null,
+        sprintIds: draftSprints.map(s => s.id),
+        techEpicKeys: draftTechEpicKeys,
         techLabels: safeTechLabels,
         ignoreIssueKeys: safeIgnoreKeys,
       });
@@ -143,6 +172,85 @@ export function FilterModal({
     } catch (error) {
       console.error('Error saving preset:', error);
     }
+  };
+
+  const fetchBoardsForProject = async (projectKey: string) => {
+    try {
+      const res = await fetch(`/api/boards?projectKeyOrId=${projectKey}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.boards || []) as JiraBoard[];
+    } catch (e) {
+      console.error('Failed to fetch boards for project:', e);
+      return [];
+    }
+  };
+
+  const fetchSprintsForBoard = async (boardId: number) => {
+    try {
+      const res = await fetch(`/api/sprints?boardId=${boardId}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.sprints || []) as JiraSprint[];
+    } catch (e) {
+      console.error('Failed to fetch sprints for board:', e);
+      return [];
+    }
+  };
+
+  const handleDraftProjectSelect = async (project: JiraProject) => {
+    setDraftProject(project);
+    setDraftBoard(null);
+    setDraftBoards([]);
+    setDraftSprintsList([]);
+    setDraftSprints([]);
+    setDraftTechEpicKeys([]);
+    const fetchedBoards = await fetchBoardsForProject(project.key);
+    setDraftBoards(fetchedBoards);
+  };
+
+  const handleDraftBoardSelect = async (board: JiraBoard) => {
+    setDraftBoard(board);
+    setDraftSprintsList([]);
+    setDraftSprints([]);
+    setDraftTechEpicKeys([]);
+    const fetchedSprints = await fetchSprintsForBoard(board.id);
+    const closed = (fetchedSprints || []).filter((s) => s.state === 'closed');
+    setDraftSprintsList(closed);
+  };
+
+  const handleDraftClearFilters = () => {
+    setDraftProject(null);
+    setDraftBoard(null);
+    setDraftBoards([]);
+    setDraftSprintsList([]);
+    setDraftSprints([]);
+    setDraftTechEpicKeys([]);
+  };
+
+  const handleApplyDraft = () => {
+    // If user cleared everything, run the existing clear logic
+    if (!draftProject && !draftBoard && draftSprints.length === 0 && draftTechEpicKeys.length === 0) {
+      onClearFilters();
+      onClose?.();
+      return;
+    }
+
+    // Commit draft selections to the dashboard (this triggers recomputation)
+    if (draftQueryMode !== queryMode) {
+      onQueryModeChange(draftQueryMode);
+    }
+
+    if (draftQueryMode === 'board') {
+      if (draftProject) onProjectSelect(draftProject);
+      if (draftBoard) onBoardSelect(draftBoard);
+      onSprintsSelect(draftSprints);
+      onTechEpicKeysChange(draftTechEpicKeys);
+      onTechLabelsChange(safeTechLabels);
+      onIgnoreIssueKeysChange(safeIgnoreKeys);
+    }
+
+    onClose?.();
   };
 
   const getProjectName = (key: string | null) => {
@@ -273,10 +381,10 @@ export function FilterModal({
       .filter(l => l.length > 0);
     
     if (labels.length === 0) {
-      onTechLabelsChange(DEFAULT_TECH_LABELS);
       setLabelsInput(DEFAULT_TECH_LABELS.join(', '));
+      setDraftTechLabels(DEFAULT_TECH_LABELS);
     } else {
-      onTechLabelsChange(labels);
+      setDraftTechLabels(labels);
     }
   };
 
@@ -289,19 +397,19 @@ export function FilterModal({
       .split(',')
       .map(k => k.trim())
       .filter(k => k.length > 0);
-    onIgnoreIssueKeysChange(keys);
+    setDraftIgnoreIssueKeys(keys);
   };
 
   return (
     <div className="flex flex-col h-full space-y-4">
       {/* Top Row: Toggle + Clear Button */}
       <div className="flex items-center justify-between gap-4">
-        <QueryModeToggle value={queryMode} onChange={onQueryModeChange} />
+        <QueryModeToggle value={draftQueryMode} onChange={setDraftQueryMode} />
         {hasActiveFilters && (
           <Button
             variant="outline"
             size="sm"
-            onClick={onClearFilters}
+            onClick={handleDraftClearFilters}
             title="Clear all filters"
           >
             🧹
@@ -310,15 +418,15 @@ export function FilterModal({
       </div>
 
       {/* Board Mode Filters - Responsive Grid */}
-      {queryMode === 'board' && (
+      {draftQueryMode === 'board' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Project */}
           <div className="flex flex-col gap-1">
             <Label className="text-sm font-medium">Project</Label>
             <ProjectFilter
               projects={projects}
-              selectedProject={selectedProject}
-              onSelect={onProjectSelect}
+              selectedProject={draftProject}
+              onSelect={handleDraftProjectSelect}
             />
           </div>
 
@@ -326,33 +434,33 @@ export function FilterModal({
           <div className="flex flex-col gap-1">
             <Label className="text-sm font-medium">Board</Label>
             <BoardSelector
-              boards={boards}
-              selectedBoard={selectedBoard}
-              onSelect={onBoardSelect}
+              boards={draftBoards}
+              selectedBoard={draftBoard}
+              onSelect={handleDraftBoardSelect}
             />
           </div>
 
           {/* Sprint */}
-          {selectedBoard && sprints.length > 0 && (
+          {draftBoard && draftSprintsList.length > 0 && (
             <div className="flex flex-col gap-1">
               <Label className="text-sm font-medium">Sprint</Label>
               <SprintSelector
-                sprints={sprints}
-                selectedSprints={selectedSprints}
-                onSelect={onSprintsSelect}
+                sprints={draftSprintsList}
+                selectedSprints={draftSprints}
+                onSelect={setDraftSprints}
               />
             </div>
           )}
 
           {/* Tech Epics */}
-          {selectedBoard && (
+          {draftBoard && (
             <div className="flex flex-col gap-1">
               <Label className="text-sm font-medium">Tech Epics</Label>
               <TechEpicsSelector
-                projectKey={selectedProject?.key || null}
-                boardId={selectedBoard.id}
-                selectedEpicKeys={techEpicKeys}
-                onSelectionChange={onTechEpicKeysChange}
+                projectKey={draftProject?.key || null}
+                boardId={draftBoard.id}
+                selectedEpicKeys={draftTechEpicKeys}
+                onSelectionChange={setDraftTechEpicKeys}
               />
             </div>
           )}
@@ -360,7 +468,7 @@ export function FilterModal({
       )}
 
       {/* JQL Mode */}
-      {queryMode === 'jql' && (
+      {draftQueryMode === 'jql' && (
         <div className="space-y-4">
           {/* JQL Panel */}
           <div>
@@ -663,7 +771,7 @@ export function FilterModal({
         </Button>
         <Button
           variant="default"
-          onClick={onClose}
+          onClick={handleApplyDraft}
         >
           Apply Filters
         </Button>

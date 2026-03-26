@@ -160,3 +160,95 @@ export interface SprintMetrics {
   velocity: number;
   component?: string;
 }
+
+// Velocity analysis types
+export type VelocityGranularity = 'sprint' | 'week';
+
+export interface VelocityEngineer {
+  accountId: string;
+  displayName: string;
+  emailAddress?: string;
+  totalIssueCount: number;
+}
+
+export interface VelocitySprintData {
+  sprintId: number;
+  sprintName: string;
+  completeDate: string;
+  velocity: number;
+  completedIssueCount: number;
+  issues: JiraIssue[];
+}
+
+export interface AssigneeVelocityData {
+  accountId: string;
+  displayName: string;
+  velocity: number;
+  issueCount: number;
+  issues: JiraIssue[];
+}
+
+export interface EngineerVelocityData {
+  sprintId: number;
+  sprintName: string;
+  completeDate: string;
+  assignees: AssigneeVelocityData[];
+}
+
+export interface VelocityTimelineConfig {
+  mode: 'sprint-count' | 'date-range';
+  sprintLimit?: number;
+  startDate?: string;
+  endDate?: string;
+  granularity?: VelocityGranularity;
+}
+
+// Cycle Time analysis types
+
+export interface CycleTimeIssueData {
+  key: string;
+  summary: string;
+  cycleTimeDays: number;
+  assignee?: { accountId: string; displayName: string } | null;
+  issuetype: string;
+  created?: string;
+  resolutiondate?: string | null;
+  storyPoints?: number;
+}
+
+export interface CycleTimeSprintData {
+  sprintId: number;
+  sprintName: string;
+  completeDate: string;
+  median: number;
+  average: number;
+  p85: number;
+  min: number;
+  max: number;
+  issueCount: number;
+  issues: CycleTimeIssueData[];
+}
+
+export interface AssigneeCycleTimeData {
+  accountId: string;
+  displayName: string;
+  median: number;
+  average: number;
+  issueCount: number;
+  issues: CycleTimeIssueData[];
+}
+
+export interface CycleTimeEngineerData {
+  sprintId: number;
+  sprintName: string;
+  completeDate: string;
+  assignees: AssigneeCycleTimeData[];
+}
+
+export interface CycleTimeFiltersConfig {
+  mode: 'sprint-count' | 'date-range';
+  sprintLimit?: number;
+  startDate?: string;
+  endDate?: string;
+  sprintNameRegex?: string;
+}

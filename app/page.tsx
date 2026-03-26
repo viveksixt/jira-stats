@@ -14,6 +14,17 @@ import { BugsTrendChart } from '@/components/dashboard/BugsTrendChart';
 import { WorkloadDistributionChart } from '@/components/dashboard/WorkloadDistributionChart';
 import { IssueAgingChart } from '@/components/dashboard/IssueAgingChart';
 import { FilterIcon } from '@/components/dashboard/FilterIcon';
+import { VelocityFilters } from '@/components/velocity/VelocityFilters';
+import { TeamVelocityChart } from '@/components/velocity/TeamVelocityChart';
+import { EngineerVelocityChart } from '@/components/velocity/EngineerVelocityChart';
+import { CycleTimeFilters } from '@/components/cycletime/CycleTimeFilters';
+import { TeamCycleTimeChart } from '@/components/cycletime/TeamCycleTimeChart';
+import { CycleTimeStatsTable } from '@/components/cycletime/CycleTimeStatsTable';
+import { CycleTimeTopIssues } from '@/components/cycletime/CycleTimeTopIssues';
+import { CycleTimeIssueModal } from '@/components/cycletime/CycleTimeIssueModal';
+import { EngineerCycleTimeChart } from '@/components/cycletime/EngineerCycleTimeChart';
+import { DeveloperFilters } from '@/components/developer/DeveloperFilters';
+import { DeveloperSummaryCard } from '@/components/developer/DeveloperSummaryCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ClearAllToasts } from '@/components/ui/clear-all-toasts';
@@ -21,7 +32,7 @@ import { showSuccess, showError, showLoading } from '@/lib/toast';
 import { cache, cacheKeys, preferenceKeys } from '@/lib/cache';
 import { DEFAULT_TECH_LABELS } from '@/lib/metrics/kpi';
 import { loadPreset, type FilterPreset } from '@/lib/filter-presets';
-import type { JiraBoard, JiraProject, JiraSprint, QueryMode, BoardType, JiraIssue } from '@/types/jira';
+import type { JiraBoard, JiraProject, JiraSprint, QueryMode, BoardType, JiraIssue, VelocityEngineer, VelocitySprintData, EngineerVelocityData, VelocityTimelineConfig, CycleTimeSprintData, CycleTimeEngineerData, CycleTimeFiltersConfig, CycleTimeIssueData } from '@/types/jira';
 import { toast } from 'sonner';
 
 export default function DashboardPage() {
@@ -95,6 +106,56 @@ export default function DashboardPage() {
   const [chartData, setChartData] = useState<any>(null);
   const [issues, setIssues] = useState<any>(null);
   const [issuesByType, setIssuesByType] = useState<any>(null);
+
+  // Tabs
+  const [activeTab, setActiveTab] = useState<'overview' | 'velocity' | 'cycletime' | 'developer'>('overview');
+
+  // Velocity analysis state
+  const [velocityBoard, setVelocityBoard] = useState<JiraBoard | null>(null);
+  const [velocityTimeline, setVelocityTimeline] = useState<VelocityTimelineConfig>({
+    mode: 'sprint-count',
+    sprintLimit: 20,
+    granularity: 'sprint',
+  });
+  const [velocityTeamData, setVelocityTeamData] = useState<VelocitySprintData[]>([]);
+  const [velocityEngineerData, setVelocityEngineerData] = useState<EngineerVelocityData[]>([]);
+  const [velocityAvailableEngineers, setVelocityAvailableEngineers] = useState<VelocityEngineer[]>([]);
+  const [velocitySelectedEngineers, setVelocitySelectedEngineers] = useState<VelocityEngineer[]>([]);
+  const [velocityLoadingTeam, setVelocityLoadingTeam] = useState(false);
+  const [velocityLoadingEngineers, setVelocityLoadingEngineers] = useState(false);
+
+  // Cycle Time analysis state
+  const [cycleTimeBoard, setCycleTimeBoard] = useState<JiraBoard | null>(null);
+  const [cycleTimeFilters, setCycleTimeFilters] = useState<CycleTimeFiltersConfig>({
+    mode: 'sprint-count',
+    sprintLimit: 20,
+  });
+  const [cycleTimeTeamData, setCycleTimeTeamData] = useState<CycleTimeSprintData[]>([]);
+  const [cycleTimeEngineerData, setCycleTimeEngineerData] = useState<CycleTimeEngineerData[]>([]);
+  const [cycleTimeAvailableEngineers, setCycleTimeAvailableEngineers] = useState<VelocityEngineer[]>([]);
+  const [cycleTimeSelectedEngineers, setCycleTimeSelectedEngineers] = useState<VelocityEngineer[]>([]);
+  const [cycleTimeLoadingTeam, setCycleTimeLoadingTeam] = useState(false);
+
+  // Developer tab state
+  const [developerBoard, setDeveloperBoard] = useState<JiraBoard | null>(null);
+  const [developerTimeline, setDeveloperTimeline] = useState<VelocityTimelineConfig>({
+    mode: 'sprint-count',
+    sprintLimit: 20,
+    granularity: 'sprint',
+  });
+  const [velocitySprintRegex, setVelocitySprintRegex] = useState('');
+  const [developerSprintRegex, setDeveloperSprintRegex] = useState('');
+  const [developerSelectedEngineers, setDeveloperSelectedEngineers] = useState<VelocityEngineer[]>([]);
+  const [developerAvailableEngineers, setDeveloperAvailableEngineers] = useState<VelocityEngineer[]>([]);
+  const [developerVelocityData, setDeveloperVelocityData] = useState<EngineerVelocityData[]>([]);
+  const [developerCycleTimeData, setDeveloperCycleTimeData] = useState<CycleTimeEngineerData[]>([]);
+  const [developerLoading, setDeveloperLoading] = useState(false);
+
+  // Cycle time issue modal (developer tab)
+  const [devCTModalOpen, setDevCTModalOpen] = useState(false);
+  const [devCTModalTitle, setDevCTModalTitle] = useState('');
+  const [devCTModalSubtitle, setDevCTModalSubtitle] = useState('');
+  const [devCTModalIssues, setDevCTModalIssues] = useState<CycleTimeIssueData[]>([]);
 
   // Preset loading state
   const [presetLoading, setPresetLoading] = useState(false);
@@ -266,9 +327,12 @@ export default function DashboardPage() {
     
     loadSprints(selectedBoard.id);
     localStorage.setItem(preferenceKeys.board, selectedBoard.id.toString());
-    // Clear tech epic selection when board changes
-    setTechEpicKeys([]);
-    localStorage.removeItem(preferenceKeys.techEpicKeys);
+    // Keep velocity defaults aligned to the applied board
+    setVelocityBoard(selectedBoard);
+    setVelocityTeamData([]);
+    setVelocityEngineerData([]);
+    setVelocityAvailableEngineers([]);
+    setVelocitySelectedEngineers([]);
   }, [selectedBoard]);
 
   const loadSprints = async (boardId: number): Promise<JiraSprint[]> => {
@@ -365,6 +429,332 @@ export default function DashboardPage() {
       toast.dismiss(toastId);
     }
   };
+
+  const buildVelocityQuery = (base: string) => {
+    const params = new URLSearchParams();
+    if (!velocityBoard) return base;
+    params.set('boardId', String(velocityBoard.id));
+
+    if (velocityTimeline.mode === 'date-range' && velocityTimeline.startDate && velocityTimeline.endDate) {
+      params.set('mode', 'date-range');
+      params.set('startDate', velocityTimeline.startDate);
+      params.set('endDate', velocityTimeline.endDate);
+    } else {
+      params.set('mode', 'sprint-count');
+      params.set('limit', String(velocityTimeline.sprintLimit || 20));
+    }
+    if (velocityTimeline.granularity) {
+      params.set('granularity', velocityTimeline.granularity);
+    }
+    if (velocitySprintRegex) {
+      params.set('sprintNameRegex', velocitySprintRegex);
+    }
+    return `${base}?${params.toString()}`;
+  };
+
+  const fetchVelocityTeam = async () => {
+    if (!velocityBoard) return;
+    setVelocityLoadingTeam(true);
+    try {
+      const cacheKey = `jira-stats-velocity-team-${velocityBoard.id}-${velocityTimeline.mode}-${velocityTimeline.sprintLimit || 20}-${velocityTimeline.startDate || ''}-${velocityTimeline.endDate || ''}-${velocitySprintRegex}`;
+      const cached = cache.get<{ sprints: VelocitySprintData[] }>(cacheKey);
+      if (cached?.sprints) {
+        setVelocityTeamData(cached.sprints);
+        return;
+      }
+
+      const res = await fetch(buildVelocityQuery('/api/velocity/team'));
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to fetch team velocity');
+      }
+      const data = await res.json();
+      setVelocityTeamData(data.sprints || []);
+      cache.set(cacheKey, { sprints: data.sprints || [] }, 5 * 60 * 1000);
+    } catch (e) {
+      console.error('Failed to fetch team velocity:', e);
+      showError(e instanceof Error ? e.message : 'Failed to fetch team velocity');
+      setVelocityTeamData([]);
+    } finally {
+      setVelocityLoadingTeam(false);
+    }
+  };
+
+  const fetchVelocityAssignees = async () => {
+    if (!velocityBoard) return;
+    setVelocityLoadingEngineers(true);
+    try {
+      const cacheKey = `jira-stats-velocity-assignees-${velocityBoard.id}`;
+      const cached = cache.get<{ assignees: VelocityEngineer[] }>(cacheKey);
+      if (cached?.assignees) {
+        setVelocityAvailableEngineers(cached.assignees);
+        return;
+      }
+
+      const res = await fetch(`/api/velocity/assignees?boardId=${velocityBoard.id}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to fetch assignees');
+      }
+      const data = await res.json();
+      setVelocityAvailableEngineers(data.assignees || []);
+      cache.set(cacheKey, { assignees: data.assignees || [] }, 10 * 60 * 1000);
+    } catch (e) {
+      console.error('Failed to fetch velocity assignees:', e);
+      setVelocityAvailableEngineers([]);
+    } finally {
+      setVelocityLoadingEngineers(false);
+    }
+  };
+
+  const fetchVelocityEngineerTrend = async () => {
+    if (!velocityBoard) return;
+    if (velocitySelectedEngineers.length === 0) {
+      setVelocityEngineerData([]);
+      return;
+    }
+    try {
+      const ids = velocitySelectedEngineers.map((e) => e.accountId).join(',');
+      const cacheKey = `jira-stats-velocity-engineer-${velocityBoard.id}-${ids}-${velocityTimeline.mode}-${velocityTimeline.sprintLimit || 20}-${velocityTimeline.startDate || ''}-${velocityTimeline.endDate || ''}-${velocityTimeline.granularity || 'sprint'}-${velocitySprintRegex}`;
+      const cached = cache.get<{ sprints: EngineerVelocityData[] }>(cacheKey);
+      if (cached?.sprints) {
+        setVelocityEngineerData(cached.sprints);
+        return;
+      }
+
+      const base = buildVelocityQuery('/api/velocity/engineer');
+      const url = `${base}&assigneeIds=${encodeURIComponent(ids)}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to fetch engineer velocity');
+      }
+      const data = await res.json();
+      setVelocityEngineerData(data.sprints || []);
+      cache.set(cacheKey, { sprints: data.sprints || [] }, 5 * 60 * 1000);
+    } catch (e) {
+      console.error('Failed to fetch engineer velocity:', e);
+      showError(e instanceof Error ? e.message : 'Failed to fetch engineer velocity');
+      setVelocityEngineerData([]);
+    }
+  };
+
+  const buildCycleTimeQuery = (base: string) => {
+    const params = new URLSearchParams();
+    if (!cycleTimeBoard) return base;
+    params.set('boardId', String(cycleTimeBoard.id));
+    if (cycleTimeFilters.mode === 'date-range' && cycleTimeFilters.startDate && cycleTimeFilters.endDate) {
+      params.set('mode', 'date-range');
+      params.set('startDate', cycleTimeFilters.startDate);
+      params.set('endDate', cycleTimeFilters.endDate);
+    } else {
+      params.set('mode', 'sprint-count');
+      params.set('limit', String(cycleTimeFilters.sprintLimit || 20));
+    }
+    if (cycleTimeFilters.sprintNameRegex) {
+      params.set('sprintNameRegex', cycleTimeFilters.sprintNameRegex);
+    }
+    if (ignoreIssueKeys.length > 0) {
+      params.set('ignoreIssueKeys', ignoreIssueKeys.join(','));
+    }
+    return `${base}?${params.toString()}`;
+  };
+
+  const fetchCycleTimeTeam = async () => {
+    if (!cycleTimeBoard) return;
+    setCycleTimeLoadingTeam(true);
+    try {
+      const cacheKey = `jira-stats-ct-team-${cycleTimeBoard.id}-${cycleTimeFilters.mode}-${cycleTimeFilters.sprintLimit || 20}-${cycleTimeFilters.startDate || ''}-${cycleTimeFilters.endDate || ''}-${cycleTimeFilters.sprintNameRegex || ''}-${ignoreIssueKeys.join(',')}`;
+      const cached = cache.get<{ sprints: CycleTimeSprintData[] }>(cacheKey);
+      if (cached?.sprints) {
+        setCycleTimeTeamData(cached.sprints);
+        return;
+      }
+      const res = await fetch(buildCycleTimeQuery('/api/cycletime/team'));
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to fetch cycle time');
+      }
+      const data = await res.json();
+      setCycleTimeTeamData(data.sprints || []);
+      cache.set(cacheKey, { sprints: data.sprints || [] }, 5 * 60 * 1000);
+    } catch (e) {
+      console.error('Failed to fetch cycle time:', e);
+      showError(e instanceof Error ? e.message : 'Failed to fetch cycle time');
+      setCycleTimeTeamData([]);
+    } finally {
+      setCycleTimeLoadingTeam(false);
+    }
+  };
+
+  const fetchCycleTimeAssignees = async () => {
+    if (!cycleTimeBoard) return;
+    try {
+      const cacheKey = `jira-stats-velocity-assignees-${cycleTimeBoard.id}`;
+      const cached = cache.get<{ assignees: VelocityEngineer[] }>(cacheKey);
+      if (cached?.assignees) {
+        setCycleTimeAvailableEngineers(cached.assignees);
+        setCycleTimeSelectedEngineers(cached.assignees);
+        return;
+      }
+      const res = await fetch(`/api/velocity/assignees?boardId=${cycleTimeBoard.id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const assignees = data.assignees || [];
+      setCycleTimeAvailableEngineers(assignees);
+      setCycleTimeSelectedEngineers(assignees);
+      cache.set(cacheKey, { assignees }, 10 * 60 * 1000);
+    } catch (e) {
+      console.error('Failed to fetch cycle time assignees:', e);
+    }
+  };
+
+  const fetchCycleTimeEngineers = async () => {
+    if (!cycleTimeBoard || cycleTimeSelectedEngineers.length === 0) {
+      setCycleTimeEngineerData([]);
+      return;
+    }
+    try {
+      const ids = cycleTimeSelectedEngineers.map((e) => e.accountId).join(',');
+      const cacheKey = `jira-stats-ct-engineer-${cycleTimeBoard.id}-${ids}-${cycleTimeFilters.mode}-${cycleTimeFilters.sprintLimit || 20}-${cycleTimeFilters.startDate || ''}-${cycleTimeFilters.endDate || ''}-${cycleTimeFilters.sprintNameRegex || ''}-${ignoreIssueKeys.join(',')}`;
+      const cached = cache.get<{ sprints: CycleTimeEngineerData[] }>(cacheKey);
+      if (cached?.sprints) {
+        setCycleTimeEngineerData(cached.sprints);
+        return;
+      }
+      const base = buildCycleTimeQuery('/api/cycletime/engineer');
+      const url = `${base}&assigneeIds=${encodeURIComponent(ids)}`;
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const data = await res.json();
+      setCycleTimeEngineerData(data.sprints || []);
+      cache.set(cacheKey, { sprints: data.sprints || [] }, 5 * 60 * 1000);
+    } catch (e) {
+      console.error('Failed to fetch engineer cycle time:', e);
+    }
+  };
+
+  const buildDeveloperQuery = (base: string) => {
+    const params = new URLSearchParams();
+    if (!developerBoard) return base;
+    params.set('boardId', String(developerBoard.id));
+    if (developerTimeline.mode === 'date-range' && developerTimeline.startDate && developerTimeline.endDate) {
+      params.set('mode', 'date-range');
+      params.set('startDate', developerTimeline.startDate);
+      params.set('endDate', developerTimeline.endDate);
+    } else {
+      params.set('mode', 'sprint-count');
+      params.set('limit', String(developerTimeline.sprintLimit || 20));
+    }
+    if (developerTimeline.granularity) params.set('granularity', developerTimeline.granularity);
+    if (developerSprintRegex) params.set('sprintNameRegex', developerSprintRegex);
+    return `${base}?${params.toString()}`;
+  };
+
+  const fetchDeveloperAssignees = async () => {
+    if (!developerBoard) return;
+    try {
+      const cacheKey = `jira-stats-velocity-assignees-${developerBoard.id}`;
+      const cached = cache.get<{ assignees: VelocityEngineer[] }>(cacheKey);
+      if (cached?.assignees) {
+        setDeveloperAvailableEngineers(cached.assignees);
+        setDeveloperSelectedEngineers(cached.assignees);
+        return;
+      }
+      const res = await fetch(`/api/velocity/assignees?boardId=${developerBoard.id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const assignees = data.assignees || [];
+      setDeveloperAvailableEngineers(assignees);
+      setDeveloperSelectedEngineers(assignees);
+      cache.set(cacheKey, { assignees }, 10 * 60 * 1000);
+    } catch (e) {
+      console.error('Failed to fetch developer assignees:', e);
+    }
+  };
+
+  const fetchDeveloperData = async () => {
+    if (!developerBoard || developerSelectedEngineers.length === 0) return;
+    setDeveloperLoading(true);
+    const ids = developerSelectedEngineers.map((e) => e.accountId).join(',');
+    try {
+      const [velRes, ctRes] = await Promise.all([
+        fetch(`${buildDeveloperQuery('/api/velocity/engineer')}&assigneeIds=${encodeURIComponent(ids)}`),
+        fetch(`${buildDeveloperQuery('/api/cycletime/engineer')}&assigneeIds=${encodeURIComponent(ids)}`),
+      ]);
+      const [velData, ctData] = await Promise.all([
+        velRes.ok ? velRes.json() : { sprints: [] },
+        ctRes.ok ? ctRes.json() : { sprints: [] },
+      ]);
+      setDeveloperVelocityData(velData.sprints || []);
+      setDeveloperCycleTimeData(ctData.sprints || []);
+    } catch (e) {
+      console.error('Failed to fetch developer data:', e);
+      showError('Failed to fetch developer data');
+    } finally {
+      setDeveloperLoading(false);
+    }
+  };
+
+  // Load engineer list when cycle time board changes (auto-selects all)
+  useEffect(() => {
+    if (activeTab !== 'cycletime') return;
+    if (!cycleTimeBoard) return;
+    fetchCycleTimeAssignees();
+    setCycleTimeEngineerData([]);
+  }, [activeTab, cycleTimeBoard?.id]);
+
+  // Auto-update cycle time engineer chart when selection changes
+  useEffect(() => {
+    if (activeTab !== 'cycletime') return;
+    if (!cycleTimeBoard) return;
+    fetchCycleTimeEngineers();
+  }, [
+    activeTab,
+    cycleTimeBoard?.id,
+    cycleTimeSelectedEngineers.map((e) => e.accountId).join(','),
+    cycleTimeFilters.mode,
+    cycleTimeFilters.sprintLimit,
+    cycleTimeFilters.startDate,
+    cycleTimeFilters.endDate,
+    cycleTimeFilters.sprintNameRegex,
+  ]);
+
+  // Load engineers when developer board changes (auto-selects all)
+  useEffect(() => {
+    if (activeTab !== 'developer') return;
+    if (!developerBoard) return;
+    fetchDeveloperAssignees();
+    setDeveloperVelocityData([]);
+    setDeveloperCycleTimeData([]);
+  }, [activeTab, developerBoard?.id]);
+
+  // Load engineer list when velocity board changes (only when velocity tab is active)
+  useEffect(() => {
+    if (activeTab !== 'velocity') return;
+    if (!velocityBoard) return;
+    fetchVelocityAssignees();
+    // Clear engineer selection & data on board change
+    setVelocitySelectedEngineers([]);
+    setVelocityEngineerData([]);
+  }, [activeTab, velocityBoard?.id]);
+
+  // Auto-update engineer trend when engineer selection or timeline changes
+  useEffect(() => {
+    if (activeTab !== 'velocity') return;
+    if (!velocityBoard) return;
+    fetchVelocityEngineerTrend();
+  }, [
+    activeTab,
+    velocityBoard?.id,
+    velocitySelectedEngineers.map((e) => e.accountId).join(','),
+    velocityTimeline.mode,
+    velocityTimeline.sprintLimit,
+    velocityTimeline.startDate,
+    velocityTimeline.endDate,
+    velocityTimeline.granularity,
+    velocitySprintRegex,
+  ]);
 
   // Handle tech labels change
   const handleTechLabelsChange = (labels: string[]) => {
@@ -736,6 +1126,56 @@ export default function DashboardPage() {
               />
             </div>
 
+            {/* Tabs */}
+            <div className="flex items-center gap-2 border-b mb-6">
+              <button
+                type="button"
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'overview'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setActiveTab('overview')}
+              >
+                Overview
+              </button>
+              <button
+                type="button"
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'velocity'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setActiveTab('velocity')}
+              >
+                Velocity
+              </button>
+              <button
+                type="button"
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'cycletime'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setActiveTab('cycletime')}
+              >
+                Cycle Time
+              </button>
+              <button
+                type="button"
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'developer'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setActiveTab('developer')}
+              >
+                Developer
+              </button>
+            </div>
+
+            {activeTab === 'overview' && (
+              <>
             {/* Charts */}
             <div className="grid gap-6 md:grid-cols-2 mb-6">
               <Card>
@@ -894,6 +1334,326 @@ export default function DashboardPage() {
                   </Card>
                 </div>
               </>
+            )}
+              </>
+            )}
+
+            {activeTab === 'cycletime' && (
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+                <div className="lg:col-span-1">
+                  <Card className="sticky top-24">
+                    <CardHeader>
+                      <CardTitle className="text-lg">Cycle time filters</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="text-sm text-muted-foreground">
+                        Project:{' '}
+                        <span className="text-foreground font-medium">
+                          {selectedProject ? `${selectedProject.name} (${selectedProject.key})` : 'None'}
+                        </span>
+                      </div>
+                      <CycleTimeFilters
+                        boards={boards}
+                        selectedBoard={cycleTimeBoard}
+                        onBoardSelect={(b) => {
+                          setCycleTimeBoard(b);
+                          setCycleTimeTeamData([]);
+                          setCycleTimeEngineerData([]);
+                          setCycleTimeAvailableEngineers([]);
+                          setCycleTimeSelectedEngineers([]);
+                        }}
+                        filters={cycleTimeFilters}
+                        onFiltersChange={setCycleTimeFilters}
+                        availableEngineers={cycleTimeAvailableEngineers}
+                        selectedEngineers={cycleTimeSelectedEngineers}
+                        onEngineersSelect={setCycleTimeSelectedEngineers}
+                        onApply={fetchCycleTimeTeam}
+                        loading={cycleTimeLoadingTeam}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="lg:col-span-3 space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Team cycle time trend</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {cycleTimeTeamData.length > 0 ? (
+                        <TeamCycleTimeChart
+                          data={cycleTimeTeamData}
+                          onPointClick={(issues: CycleTimeIssueData[], label: string) => {
+                            const jiraIssues = issues.map((i) => ({
+                              id: i.key,
+                              key: i.key,
+                              fields: {
+                                summary: i.summary,
+                                status: { name: 'Done', statusCategory: { key: 'done' } },
+                                issuetype: { name: i.issuetype },
+                                labels: [],
+                                components: [],
+                                assignee: i.assignee
+                                  ? { accountId: i.assignee.accountId, displayName: i.assignee.displayName }
+                                  : null,
+                                created: i.created || '',
+                                updated: '',
+                                resolutiondate: i.resolutiondate,
+                                customfield_10016: i.storyPoints,
+                              },
+                            } as JiraIssue));
+                            handleMetricClick(jiraIssues, `Cycle Time: ${label}`, true);
+                          }}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-64 text-muted-foreground">
+                          <div className="text-center">
+                            <div className="text-2xl mb-2">⏱️</div>
+                            <div className="text-sm">Pick a board and click Apply to load cycle time data.</div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {cycleTimeTeamData.length > 0 && (
+                    <>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Sprint statistics</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <CycleTimeStatsTable data={cycleTimeTeamData} />
+                        </CardContent>
+                      </Card>
+                      <CycleTimeTopIssues data={cycleTimeTeamData} />
+                    </>
+                  )}
+
+                  {cycleTimeSelectedEngineers.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Engineer cycle time — sprint-on-sprint</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {cycleTimeEngineerData.length > 0 ? (
+                          <EngineerCycleTimeChart data={cycleTimeEngineerData} />
+                        ) : (
+                          <div className="flex items-center justify-center h-64 text-muted-foreground">
+                            <div className="text-center">
+                              <div className="text-2xl mb-2">⏳</div>
+                              <div className="text-sm">Loading engineer cycle time…</div>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'developer' && (
+              <>
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+                <div className="lg:col-span-1">
+                  <Card className="sticky top-24">
+                    <CardHeader>
+                      <CardTitle className="text-lg">Developer filters</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="text-sm text-muted-foreground">
+                        Project:{' '}
+                        <span className="text-foreground font-medium">
+                          {selectedProject ? `${selectedProject.name} (${selectedProject.key})` : 'None'}
+                        </span>
+                      </div>
+                      <DeveloperFilters
+                        boards={boards}
+                        selectedBoard={developerBoard}
+                        onBoardSelect={(b) => {
+                          setDeveloperBoard(b);
+                          setDeveloperSelectedEngineers([]);
+                          setDeveloperAvailableEngineers([]);
+                          setDeveloperVelocityData([]);
+                          setDeveloperCycleTimeData([]);
+                        }}
+                        availableEngineers={developerAvailableEngineers}
+                        selectedEngineers={developerSelectedEngineers}
+                        onEngineersSelect={setDeveloperSelectedEngineers}
+                        timeline={developerTimeline}
+                        onTimelineChange={setDeveloperTimeline}
+                        sprintNameRegex={developerSprintRegex}
+                        onSprintRegexChange={setDeveloperSprintRegex}
+                        onApply={fetchDeveloperData}
+                        loading={developerLoading}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="lg:col-span-3 space-y-6">
+                  {developerSelectedEngineers.length > 0 && (developerVelocityData.length > 0 || developerCycleTimeData.length > 0) ? (
+                    <>
+                      {/* Summary card only meaningful for a single engineer */}
+                      {developerSelectedEngineers.length === 1 && (
+                        <DeveloperSummaryCard
+                          engineerName={developerSelectedEngineers[0].displayName}
+                          velocityData={developerVelocityData}
+                          cycleTimeData={developerCycleTimeData}
+                        />
+                      )}
+
+                      {developerVelocityData.length > 0 && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle>Velocity — sprint-on-sprint</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <EngineerVelocityChart
+                              data={developerVelocityData}
+                              onPointClick={(issues, engineerName, label) =>
+                                handleMetricClick(issues, `${engineerName} — ${label}`, true)
+                              }
+                            />
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {developerCycleTimeData.length > 0 && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle>Cycle time — sprint-on-sprint</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <EngineerCycleTimeChart
+                              data={developerCycleTimeData}
+                              onPointClick={(issues, engineerName, sprintName) => {
+                                setDevCTModalIssues(issues);
+                                setDevCTModalTitle(`${engineerName} — ${sprintName}`);
+                                setDevCTModalSubtitle(`${issues.length} issue${issues.length !== 1 ? 's' : ''} · median ${issues.length > 0 ? (issues.reduce((s, i) => s + i.cycleTimeDays, 0) / issues.length).toFixed(1) : 0} days`);
+                                setDevCTModalOpen(true);
+                              }}
+                            />
+                          </CardContent>
+                        </Card>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-center h-64 text-muted-foreground">
+                      <div className="text-center">
+                        <div className="text-2xl mb-2">👤</div>
+                        <div className="text-sm">
+                          {developerLoading
+                            ? 'Loading developer data…'
+                            : 'Select a board, pick engineers, and click Apply.'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <CycleTimeIssueModal
+                isOpen={devCTModalOpen}
+                title={devCTModalTitle}
+                subtitle={devCTModalSubtitle}
+                issues={devCTModalIssues}
+                onClose={() => setDevCTModalOpen(false)}
+              />
+              </>
+            )}
+
+            {activeTab === 'velocity' && (
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+                <div className="lg:col-span-1">
+                  <Card className="sticky top-24">
+                    <CardHeader>
+                      <CardTitle className="text-lg">Velocity filters</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="text-sm text-muted-foreground">
+                        Project:{' '}
+                        <span className="text-foreground font-medium">
+                          {selectedProject ? `${selectedProject.name} (${selectedProject.key})` : 'None'}
+                        </span>
+                      </div>
+                      <VelocityFilters
+                        boards={boards}
+                        selectedBoard={velocityBoard}
+                        onBoardSelect={(b) => {
+                          setVelocityBoard(b);
+                          setVelocityTeamData([]);
+                          setVelocityEngineerData([]);
+                          setVelocityAvailableEngineers([]);
+                          setVelocitySelectedEngineers([]);
+                        }}
+                        availableEngineers={velocityAvailableEngineers}
+                        selectedEngineers={velocitySelectedEngineers}
+                        onEngineersSelect={setVelocitySelectedEngineers}
+                        timeline={velocityTimeline}
+                        onTimelineChange={setVelocityTimeline}
+                        sprintNameRegex={velocitySprintRegex}
+                        onSprintRegexChange={setVelocitySprintRegex}
+                        onApplyTeam={fetchVelocityTeam}
+                        loadingTeam={velocityLoadingTeam}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="lg:col-span-3 space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Team sprint velocity trend</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {velocityTeamData.length > 0 ? (
+                        <TeamVelocityChart
+                          data={velocityTeamData}
+                          onPointClick={(issues, label) => handleMetricClick(issues, `Sprint: ${label}`, true)}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-64 text-muted-foreground">
+                          <div className="text-center">
+                            <div className="text-2xl mb-2">📈</div>
+                            <div className="text-sm">Pick a board and click Apply to load team trend.</div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {velocitySelectedEngineers.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>
+                          Engineer {velocityTimeline.granularity === 'week' ? 'week-on-week' : 'sprint-on-sprint'} contribution
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {velocityEngineerData.length > 0 ? (
+                          <EngineerVelocityChart
+                            data={velocityEngineerData}
+                            onPointClick={(issues, engineerName, label) =>
+                              handleMetricClick(issues, `${engineerName} - ${label}`, true)
+                            }
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-64 text-muted-foreground">
+                            <div className="text-center">
+                              <div className="text-2xl mb-2">⏳</div>
+                              <div className="text-sm">
+                                Loading engineer trend… (updates automatically when you change engineer selection)
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
             )}
           </>
         )}
